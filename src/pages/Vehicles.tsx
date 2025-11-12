@@ -36,8 +36,6 @@ import { Truck, Plus, Edit, Trash2, Search, Filter, Upload, Download, DollarSign
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { useAuth } from "@/hooks/useAuth"
-import { useRole } from "@/hooks/useRole"
-import { RoleProtectedRoute } from "@/components/RoleProtectedRoute"
 import { CSVImportDialog } from "@/components/CSVImportDialog"
 
 type VehicleStatus = 'Disponível' | 'Em_Manutenção' | 'Em_Uso'
@@ -52,6 +50,86 @@ interface Vehicle {
   created_at: string
   updated_at: string
 }
+
+// Componente de formulário movido para fora para evitar recriação
+const VehicleForm = ({ 
+  formData, 
+  setFormData, 
+  onSubmit, 
+  onCancel, 
+  isEdit = false 
+}: { 
+  formData: { tipo: string; capacidade_ton: string; km_por_litro: string; status: VehicleStatus }
+  setFormData: (data: any) => void
+  onSubmit: (e: React.FormEvent) => void
+  onCancel: () => void
+  isEdit?: boolean
+}) => (
+  <form onSubmit={onSubmit} className="space-y-4">
+    <div className="space-y-2">
+      <Label htmlFor="tipo">Tipo de Veículo</Label>
+      <Input
+        id="tipo"
+        placeholder="Ex: Caminhão, Van, Carreta"
+        value={formData.tipo}
+        onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}
+        required
+      />
+    </div>
+    
+    <div className="grid grid-cols-3 gap-4">
+      <div className="space-y-2">
+        <Label htmlFor="capacidade_ton">Capacidade (ton)</Label>
+        <Input
+          id="capacidade_ton"
+          type="number"
+          step="0.01"
+          min="0.1"
+          placeholder="40.00"
+          value={formData.capacidade_ton}
+          onChange={(e) => setFormData({ ...formData, capacidade_ton: e.target.value })}
+          required
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="km_por_litro">Km/litro</Label>
+        <Input
+          id="km_por_litro"
+          type="number"
+          step="0.01"
+          min="0.1"
+          placeholder="3.20"
+          value={formData.km_por_litro}
+          onChange={(e) => setFormData({ ...formData, km_por_litro: e.target.value })}
+          required
+        />
+      </div>
+    </div>
+
+    <div className="space-y-2">
+      <Label htmlFor="status">Status</Label>
+      <Select value={formData.status} onValueChange={(value: VehicleStatus) => setFormData({ ...formData, status: value })}>
+        <SelectTrigger>
+          <SelectValue placeholder="Selecione o status" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="Disponível">Disponível</SelectItem>
+          <SelectItem value="Em_Manutenção">Em Manutenção</SelectItem>
+          <SelectItem value="Em_Uso">Em Uso</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+
+    <DialogFooter>
+      <Button type="button" variant="secondary" onClick={onCancel}>
+        Cancelar
+      </Button>
+      <Button type="submit">
+        {isEdit ? 'Atualizar' : 'Cadastrar'} Veículo
+      </Button>
+    </DialogFooter>
+  </form>
+)
 
 const Vehicles = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
@@ -72,7 +150,6 @@ const Vehicles = () => {
   })
   const { toast } = useToast()
   const { user } = useAuth()
-  const { canCreate, canUpdate, canDelete } = useRole()
 
   useEffect(() => {
     if (user) {
@@ -306,77 +383,12 @@ const Vehicles = () => {
     }
   }
 
-  const VehicleForm = ({ onSubmit, isEdit = false }: { onSubmit: (e: React.FormEvent) => void, isEdit?: boolean }) => (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="tipo">Tipo de Veículo</Label>
-        <Input
-          id="tipo"
-          placeholder="Ex: Caminhão, Van, Carreta"
-          value={formData.tipo}
-          onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}
-          required
-        />
-      </div>
-      
-      <div className="grid grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="capacidade_ton">Capacidade (ton)</Label>
-          <Input
-            id="capacidade_ton"
-            type="number"
-            step="0.01"
-            min="0.1"
-            placeholder="40.00"
-            value={formData.capacidade_ton}
-            onChange={(e) => setFormData({ ...formData, capacidade_ton: e.target.value })}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="km_por_litro">Km/litro</Label>
-          <Input
-            id="km_por_litro"
-            type="number"
-            step="0.01"
-            min="0.1"
-            placeholder="3.20"
-            value={formData.km_por_litro}
-            onChange={(e) => setFormData({ ...formData, km_por_litro: e.target.value })}
-            required
-          />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="status">Status</Label>
-        <Select value={formData.status} onValueChange={(value: VehicleStatus) => setFormData({ ...formData, status: value })}>
-          <SelectTrigger>
-            <SelectValue placeholder="Selecione o status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Disponível">Disponível</SelectItem>
-            <SelectItem value="Em_Manutenção">Em Manutenção</SelectItem>
-            <SelectItem value="Em_Uso">Em Uso</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <DialogFooter>
-        <Button type="button" variant="secondary" onClick={() => {
-          resetForm()
-          setIsDialogOpen(false)
-          setIsEditDialogOpen(false)
-          setEditingVehicle(null)
-        }}>
-          Cancelar
-        </Button>
-        <Button type="submit">
-          {isEdit ? 'Atualizar' : 'Cadastrar'} Veículo
-        </Button>
-      </DialogFooter>
-    </form>
-  )
+  const handleCancelForm = () => {
+    resetForm()
+    setIsDialogOpen(false)
+    setIsEditDialogOpen(false)
+    setEditingVehicle(null)
+  }
 
   if (isLoading) {
     return (
@@ -407,35 +419,38 @@ const Vehicles = () => {
             </p>
           </div>
           
-          <RoleProtectedRoute requiredPermission={{ action: 'create', entity: 'vehicles' }}>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setImportOpen(true)}>
-                <Upload className="h-4 w-4 mr-2" />
-                Importar CSV
-              </Button>
-              <Button variant="outline" onClick={handleExport}>
-                <Download className="h-4 w-4 mr-2" />
-                Exportar CSV
-              </Button>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="flex items-center gap-2">
-                    <Plus className="h-4 w-4" />
-                    Novo Veículo
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px]">
-                  <DialogHeader>
-                    <DialogTitle>Cadastrar Novo Veículo</DialogTitle>
-                    <DialogDescription>
-                      Preencha as informações do veículo para adicionar à frota.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <VehicleForm onSubmit={handleSubmit} />
-                </DialogContent>
-              </Dialog>
-            </div>
-          </RoleProtectedRoute>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              Importar CSV
+            </Button>
+            <Button variant="outline" onClick={handleExport}>
+              <Download className="h-4 w-4 mr-2" />
+              Exportar CSV
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Novo Veículo
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Cadastrar Novo Veículo</DialogTitle>
+                  <DialogDescription>
+                    Preencha as informações do veículo para adicionar à frota.
+                  </DialogDescription>
+                </DialogHeader>
+                <VehicleForm 
+                  formData={formData}
+                  setFormData={setFormData}
+                  onSubmit={handleSubmit}
+                  onCancel={handleCancelForm}
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {/* Barra de busca e filtros */}
@@ -497,38 +512,34 @@ const Vehicles = () => {
                     >
                       <DollarSign className="h-4 w-4" />
                     </Button>
-                    <RoleProtectedRoute requiredPermission={{ action: 'update', entity: 'vehicles' }}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(vehicle)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </RoleProtectedRoute>
-                    <RoleProtectedRoute requiredPermission={{ action: 'delete', entity: 'vehicles' }}>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Tem certeza que deseja excluir o veículo "{vehicle.tipo}"? Esta ação não pode ser desfeita.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(vehicle.id)}>
-                              Excluir
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </RoleProtectedRoute>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(vehicle)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Tem certeza que deseja excluir este veículo? Esta ação não pode ser desfeita.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDelete(vehicle.id)}>
+                            Excluir
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               </CardHeader>
@@ -558,7 +569,13 @@ const Vehicles = () => {
               Altere as informações do veículo {editingVehicle?.tipo}.
             </DialogDescription>
           </DialogHeader>
-          <VehicleForm onSubmit={handleEditSubmit} isEdit />
+          <VehicleForm 
+            formData={formData}
+            setFormData={setFormData}
+            onSubmit={handleEditSubmit}
+            onCancel={handleCancelForm}
+            isEdit 
+          />
         </DialogContent>
       </Dialog>
 

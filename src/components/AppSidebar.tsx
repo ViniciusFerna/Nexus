@@ -30,9 +30,8 @@ const mainItems = [
 ]
 
 const managementItems = [
-  { title: "Custos", url: "/custos", icon: DollarSign },
+  { title: "Parâmetros", url: "/custos", icon: DollarSign },
   { title: "Relatórios", url: "/reports", icon: BarChart3 },
-  { title: "Usuários", url: "/users", icon: Users },
 ]
 
 export function AppSidebar() {

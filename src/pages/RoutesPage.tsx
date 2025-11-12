@@ -9,8 +9,6 @@ import { useToast } from '@/hooks/use-toast'
 import { Plus, Edit, Trash2, MapPin, Clock, Search, Route, Upload, Download } from 'lucide-react'
 import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
-import { useRole } from '@/hooks/useRole'
-import { RoleProtectedRoute } from '@/components/RoleProtectedRoute'
 import { CSVImportDialog } from '@/components/CSVImportDialog'
 
 interface Route {
@@ -20,9 +18,102 @@ interface Route {
   destino: string
   distancia_km: number
   tempo_estimado_h: number
+  valor_pedagio: number
   created_at: string
   updated_at: string
 }
+
+// Componente de formulário movido para fora para evitar recriação
+const RouteForm = ({ 
+  formData, 
+  setFormData, 
+  onSubmit, 
+  onCancel,
+  isEdit = false 
+}: { 
+  formData: { origem: string; destino: string; distancia_km: string; tempo_estimado_h: string; valor_pedagio: string }
+  setFormData: (data: any) => void
+  onSubmit: (e: React.FormEvent) => void
+  onCancel: () => void
+  isEdit?: boolean
+}) => (
+  <form onSubmit={onSubmit} className="space-y-4">
+    <div className="space-y-2">
+      <Label htmlFor="origem">Origem</Label>
+      <Input
+        id="origem"
+        placeholder="Ex: Centro da cidade"
+        value={formData.origem}
+        onChange={(e) => setFormData({ ...formData, origem: e.target.value })}
+        required
+      />
+    </div>
+    
+    <div className="space-y-2">
+      <Label htmlFor="destino">Destino</Label>
+      <Input
+        id="destino"
+        placeholder="Ex: Zona Sul"
+        value={formData.destino}
+        onChange={(e) => setFormData({ ...formData, destino: e.target.value })}
+        required
+      />
+    </div>
+    
+    <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-2">
+        <Label htmlFor="distancia_km">Distância (km)</Label>
+        <Input
+          id="distancia_km"
+          type="number"
+          step="0.01"
+          min="0.01"
+          placeholder="15.50"
+          value={formData.distancia_km}
+          onChange={(e) => setFormData({ ...formData, distancia_km: e.target.value })}
+          required
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor="tempo_estimado_h">Tempo estimado (horas)</Label>
+        <Input
+          id="tempo_estimado_h"
+          type="number"
+          step="0.01"
+          min="0.01"
+          placeholder="2.50"
+          value={formData.tempo_estimado_h}
+          onChange={(e) => setFormData({ ...formData, tempo_estimado_h: e.target.value })}
+          required
+        />
+      </div>
+    </div>
+
+    <div className="space-y-2">
+      <Label htmlFor="valor_pedagio">Valor do Pedágio (R$)</Label>
+      <Input
+        id="valor_pedagio"
+        type="number"
+        step="0.01"
+        min="0"
+        placeholder="0.00"
+        value={formData.valor_pedagio}
+        onChange={(e) => setFormData({ ...formData, valor_pedagio: e.target.value })}
+      />
+      <p className="text-xs text-muted-foreground">Valor total dos pedágios neste trecho</p>
+    </div>
+    
+    <DialogFooter>
+      <Button type="button" variant="outline" onClick={onCancel}>
+        Cancelar
+      </Button>
+      <Button type="submit">
+        {isEdit ? 'Atualizar' : 'Criar'} Rota
+      </Button>
+    </DialogFooter>
+  </form>
+)
 
 export default function RoutesPage() {
   const [routes, setRoutes] = useState<Route[]>([])
@@ -37,11 +128,11 @@ export default function RoutesPage() {
     origem: '',
     destino: '',
     distancia_km: '',
-    tempo_estimado_h: ''
+    tempo_estimado_h: '',
+    valor_pedagio: '0'
   })
   const { user } = useAuth()
   const { toast } = useToast()
-  const { canCreate, canUpdate, canDelete } = useRole()
 
   useEffect(() => {
     if (user) {
@@ -97,6 +188,7 @@ export default function RoutesPage() {
         destino: formData.destino,
         distancia_km: parseFloat(formData.distancia_km),
         tempo_estimado_h: parseFloat(formData.tempo_estimado_h),
+        valor_pedagio: parseFloat(formData.valor_pedagio),
         user_id: user.id
       }
 
@@ -131,7 +223,8 @@ export default function RoutesPage() {
       origem: route.origem,
       destino: route.destino,
       distancia_km: route.distancia_km.toString(),
-      tempo_estimado_h: route.tempo_estimado_h.toString()
+      tempo_estimado_h: route.tempo_estimado_h.toString(),
+      valor_pedagio: route.valor_pedagio.toString()
     })
     setIsEditDialogOpen(true)
   }
@@ -145,7 +238,8 @@ export default function RoutesPage() {
         origem: formData.origem,
         destino: formData.destino,
         distancia_km: parseFloat(formData.distancia_km),
-        tempo_estimado_h: parseFloat(formData.tempo_estimado_h)
+        tempo_estimado_h: parseFloat(formData.tempo_estimado_h),
+        valor_pedagio: parseFloat(formData.valor_pedagio)
       }
 
       const { data, error } = await supabase
@@ -205,8 +299,16 @@ export default function RoutesPage() {
       origem: '',
       destino: '',
       distancia_km: '',
-      tempo_estimado_h: ''
+      tempo_estimado_h: '',
+      valor_pedagio: '0'
     })
+  }
+
+  const handleCancelForm = () => {
+    resetForm()
+    setIsDialogOpen(false)
+    setIsEditDialogOpen(false)
+    setEditingRoute(null)
   }
 
   const handleImport = async (data: any[]) => {
@@ -219,8 +321,8 @@ export default function RoutesPage() {
 
   const handleExport = () => {
     const csv = [
-      ['Origem', 'Destino', 'Distância (km)', 'Tempo (h)'].join(','),
-      ...routes.map(r => [r.origem, r.destino, r.distancia_km, r.tempo_estimado_h].join(','))
+      ['Origem', 'Destino', 'Distância (km)', 'Tempo (h)', 'Pedágio (R$)'].join(','),
+      ...routes.map(r => [r.origem, r.destino, r.distancia_km, r.tempo_estimado_h, r.valor_pedagio].join(','))
     ].join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = window.URL.createObjectURL(blob)
@@ -230,76 +332,6 @@ export default function RoutesPage() {
     a.click()
     toast({ title: "Exportado", description: "Rotas exportadas com sucesso" })
   }
-
-  const RouteForm = ({ onSubmit, isEdit = false }: { onSubmit: (e: React.FormEvent) => void, isEdit?: boolean }) => (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="origem">Origem</Label>
-        <Input
-          id="origem"
-          placeholder="Ex: Centro da cidade"
-          value={formData.origem}
-          onChange={(e) => setFormData({ ...formData, origem: e.target.value })}
-          required
-        />
-      </div>
-      
-      <div className="space-y-2">
-        <Label htmlFor="destino">Destino</Label>
-        <Input
-          id="destino"
-          placeholder="Ex: Zona Sul"
-          value={formData.destino}
-          onChange={(e) => setFormData({ ...formData, destino: e.target.value })}
-          required
-        />
-      </div>
-      
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="distancia_km">Distância (km)</Label>
-          <Input
-            id="distancia_km"
-            type="number"
-            step="0.01"
-            min="0.01"
-            placeholder="15.50"
-            value={formData.distancia_km}
-            onChange={(e) => setFormData({ ...formData, distancia_km: e.target.value })}
-            required
-          />
-        </div>
-        
-        <div className="space-y-2">
-          <Label htmlFor="tempo_estimado_h">Tempo estimado (horas)</Label>
-          <Input
-            id="tempo_estimado_h"
-            type="number"
-            step="0.01"
-            min="0.01"
-            placeholder="2.50"
-            value={formData.tempo_estimado_h}
-            onChange={(e) => setFormData({ ...formData, tempo_estimado_h: e.target.value })}
-            required
-          />
-        </div>
-      </div>
-      
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={() => {
-          resetForm()
-          setIsDialogOpen(false)
-          setIsEditDialogOpen(false)
-          setEditingRoute(null)
-        }}>
-          Cancelar
-        </Button>
-        <Button type="submit">
-          {isEdit ? 'Atualizar' : 'Criar'} Rota
-        </Button>
-      </DialogFooter>
-    </form>
-  )
 
   if (loading) {
     return (
@@ -330,35 +362,38 @@ export default function RoutesPage() {
             </p>
           </div>
           
-          <RoleProtectedRoute requiredPermission={{ action: 'create', entity: 'routes' }}>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setImportOpen(true)}>
-                <Upload className="h-4 w-4 mr-2" />
-                Importar CSV
-              </Button>
-              <Button variant="outline" onClick={handleExport}>
-                <Download className="h-4 w-4 mr-2" />
-                Exportar CSV
-              </Button>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Nova Rota
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>Nova Rota</DialogTitle>
-                    <DialogDescription>
-                      Adicione uma nova rota ao sistema.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <RouteForm onSubmit={handleSubmit} />
-                </DialogContent>
-              </Dialog>
-            </div>
-          </RoleProtectedRoute>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              Importar CSV
+            </Button>
+            <Button variant="outline" onClick={handleExport}>
+              <Download className="h-4 w-4 mr-2" />
+              Exportar CSV
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nova Rota
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Nova Rota</DialogTitle>
+                  <DialogDescription>
+                    Adicione uma nova rota ao sistema.
+                  </DialogDescription>
+                </DialogHeader>
+                <RouteForm 
+                  formData={formData}
+                  setFormData={setFormData}
+                  onSubmit={handleSubmit}
+                  onCancel={handleCancelForm}
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {/* Barra de busca */}
@@ -397,38 +432,34 @@ export default function RoutesPage() {
                     {route.origem} → {route.destino}
                   </CardTitle>
                   <div className="flex gap-2">
-                    <RoleProtectedRoute requiredPermission={{ action: 'update', entity: 'routes' }}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(route)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </RoleProtectedRoute>
-                    <RoleProtectedRoute requiredPermission={{ action: 'delete', entity: 'routes' }}>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Tem certeza que deseja excluir a rota "{route.origem} → {route.destino}"? Esta ação não pode ser desfeita.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(route.id)}>
-                              Excluir
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </RoleProtectedRoute>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(route)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Tem certeza que deseja excluir esta rota? Esta ação não pode ser desfeita.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDelete(route.id)}>
+                            Excluir
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               </CardHeader>
@@ -446,7 +477,7 @@ export default function RoutesPage() {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+                <div className="grid grid-cols-3 gap-4 pt-2 border-t">
                   <div className="text-center">
                     <p className="text-2xl font-bold text-primary">{route.distancia_km}</p>
                     <p className="text-xs text-muted-foreground">km</p>
@@ -457,6 +488,10 @@ export default function RoutesPage() {
                       <p className="text-2xl font-bold text-primary">{route.tempo_estimado_h}</p>
                     </div>
                     <p className="text-xs text-muted-foreground">horas</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-success">R$ {route.valor_pedagio.toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground">pedágio</p>
                   </div>
                 </div>
               </CardContent>
@@ -474,7 +509,13 @@ export default function RoutesPage() {
               Edite as informações da rota.
             </DialogDescription>
           </DialogHeader>
-          <RouteForm onSubmit={handleEditSubmit} isEdit />
+          <RouteForm 
+            formData={formData}
+            setFormData={setFormData}
+            onSubmit={handleEditSubmit}
+            onCancel={handleCancelForm}
+            isEdit 
+          />
         </DialogContent>
       </Dialog>
 

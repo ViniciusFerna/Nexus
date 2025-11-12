@@ -40,7 +40,7 @@ export async function fetchRouteData(
 ) {
   const { data, error } = await supabaseClient
     .from('routes')
-    .select('id, distancia_km')
+    .select('id, distancia_km, valor_pedagio')
     .eq('id', routeId)
     .single();
 
@@ -58,10 +58,17 @@ export async function fetchGlobalParameters(
     .from('parametros_globais')
     .select('preco_diesel_litro, velocidade_media_kmh')
     .eq('user_id', userId)
-    .single();
+    .maybeSingle();
+
+  // Return default values if no parameters found
+  if (!data) {
+    return {
+      preco_diesel_litro: 6.0,
+      velocidade_media_kmh: 60
+    };
+  }
 
   if (error) throw new Error(`Failed to fetch global parameters: ${error.message}`);
-  if (!data) throw new Error('Global parameters not found');
 
   return data;
 }

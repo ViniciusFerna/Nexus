@@ -20,7 +20,6 @@ import {
   PlayCircle,
   Calculator,
   Fuel,
-  DollarSign,
   RefreshCw
 } from "lucide-react";
 import { format } from "date-fns";
@@ -61,6 +60,13 @@ interface Route {
   destino: string;
   distancia_km: number;
   tempo_estimado_h: number;
+}
+
+interface VehicleCost {
+  id: string;
+  nome: string;
+  valor_mensal: number;
+  ativo: boolean;
 }
 
 export default function ViagemDetalhe() {
@@ -129,6 +135,24 @@ export default function ViagemDetalhe() {
       return data as Route;
     },
     enabled: !!trip?.route_id,
+  });
+
+  // Fetch vehicle costs
+  const { data: vehicleCosts } = useQuery({
+    queryKey: ["vehicle-costs", trip?.vehicle_id],
+    queryFn: async () => {
+      if (!trip?.vehicle_id || !user?.id) return [];
+      const { data, error } = await supabase
+        .from("custos_veiculo")
+        .select("*")
+        .eq("veiculo_id", trip.vehicle_id)
+        .eq("user_id", user.id)
+        .eq("ativo", true);
+      
+      if (error) throw error;
+      return data as VehicleCost[];
+    },
+    enabled: !!trip?.vehicle_id && !!user?.id,
   });
 
   // Recalculate costs mutation
@@ -201,142 +225,208 @@ export default function ViagemDetalhe() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center space-x-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/viagens')}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="space-y-1">
-          <h1 className="text-3xl font-bold text-foreground">Detalhes da Viagem</h1>
-          <p className="text-muted-foreground">
-            Informações completas da viagem selecionada
-          </p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center space-x-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/viagens')}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold text-foreground">Detalhes da Viagem</h1>
+            <p className="text-muted-foreground">
+              Informações completas da viagem selecionada
+            </p>
+          </div>
         </div>
+        <Badge variant={getStatusVariant(trip.status)} className="flex items-center space-x-2 px-4 py-2">
+          {getStatusIcon(trip.status)}
+          <span className="text-sm">{trip.status}</span>
+        </Badge>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Trip Information */}
+      {/* Quick Summary Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Calendar className="h-5 w-5" />
-              <span>Informações da Viagem</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="pt-6">
             <div className="flex items-center justify-between">
-              <span className="font-medium">Status:</span>
-              <Badge variant={getStatusVariant(trip.status)} className="flex items-center space-x-1">
-                {getStatusIcon(trip.status)}
-                <span>{trip.status}</span>
-              </Badge>
-            </div>
-            
-            <Separator />
-            
-            <div>
-              <span className="font-medium">Data de Início:</span>
-              <p className="text-muted-foreground">
-                {format(new Date(trip.start_date), "dd/MM/yyyy", { locale: ptBR })}
-              </p>
-            </div>
-            
-            <div>
-              <span className="font-medium">Data de Término:</span>
-              <p className="text-muted-foreground">
-                {format(new Date(trip.end_date), "dd/MM/yyyy", { locale: ptBR })}
-              </p>
-            </div>
-
-            {trip.peso_ton && (
-              <div className="flex items-center space-x-2">
-                <Weight className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">Peso:</span>
-                <span className="text-muted-foreground">{trip.peso_ton} toneladas</span>
+              <div>
+                <p className="text-sm text-muted-foreground">Custo Total</p>
+                <p className="text-2xl font-bold text-primary">
+                  R$ {trip.custo_total_estimado?.toFixed(2) || '0.00'}
+                </p>
               </div>
-            )}
-
-            {trip.volume_m3 && (
-              <div className="flex items-center space-x-2">
-                <Package className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">Volume:</span>
-                <span className="text-muted-foreground">{trip.volume_m3} m³</span>
-              </div>
-            )}
+              <Calculator className="h-8 w-8 text-muted-foreground" />
+            </div>
           </CardContent>
         </Card>
 
-        {/* Vehicle Information */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Truck className="h-5 w-5" />
-              <span>Veículo</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {vehicle ? (
-              <>
-                <div>
-                  <span className="font-medium">Tipo:</span>
-                  <p className="text-muted-foreground">{vehicle.tipo}</p>
-                </div>
-                <div>
-                  <span className="font-medium">Capacidade:</span>
-                  <p className="text-muted-foreground">{vehicle.capacidade_ton} toneladas</p>
-                </div>
-                <div>
-                  <span className="font-medium">Status:</span>
-                  <p className="text-muted-foreground">{vehicle.status}</p>
-                </div>
-              </>
-            ) : (
-              <p className="text-muted-foreground">Carregando informações do veículo...</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Route Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <MapPin className="h-5 w-5" />
-              <span>Rota</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {route ? (
-              <>
-                <div>
-                  <span className="font-medium">Origem:</span>
-                  <p className="text-muted-foreground">{route.origem}</p>
-                </div>
-                <div>
-                  <span className="font-medium">Destino:</span>
-                  <p className="text-muted-foreground">{route.destino}</p>
-                </div>
-                <div>
-                  <span className="font-medium">Distância:</span>
-                  <p className="text-muted-foreground">{route.distancia_km} km</p>
-                </div>
-                <div>
-                  <span className="font-medium">Tempo Estimado:</span>
-                  <p className="text-muted-foreground">{route.tempo_estimado_h} horas</p>
-                </div>
-              </>
-            ) : (
-              <p className="text-muted-foreground">Carregando informações da rota...</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Operational Calculations */}
-        <Card className="md:col-span-2">
-          <CardHeader>
+          <CardContent className="pt-6">
             <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Tempo Estimado</p>
+                <p className="text-2xl font-bold">
+                  {trip.tempo_estimado_h?.toFixed(1) || '0.0'}h
+                </p>
+              </div>
+              <Clock className="h-8 w-8 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Distância</p>
+                <p className="text-2xl font-bold">
+                  {route?.distancia_km || '0'} km
+                </p>
+              </div>
+              <MapPin className="h-8 w-8 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Left Column - Trip Details */}
+        <div className="space-y-6 lg:col-span-1">
+          {/* Trip Information */}
+          <Card>
+            <CardHeader>
               <CardTitle className="flex items-center space-x-2">
-                <Calculator className="h-5 w-5" />
-                <span>Cálculos Operacionais</span>
+                <Calendar className="h-5 w-5" />
+                <span>Informações da Viagem</span>
               </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">Data de Início</span>
+                <p className="text-base font-medium">
+                  {format(new Date(trip.start_date), "dd/MM/yyyy", { locale: ptBR })}
+                </p>
+              </div>
+              
+              <Separator />
+              
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">Data de Término</span>
+                <p className="text-base font-medium">
+                  {format(new Date(trip.end_date), "dd/MM/yyyy", { locale: ptBR })}
+                </p>
+              </div>
+
+              {(trip.peso_ton || trip.volume_m3) && (
+                <>
+                  <Separator />
+                  
+                  {trip.peso_ton && (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Weight className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium text-muted-foreground">Peso</span>
+                      </div>
+                      <span className="font-medium">{trip.peso_ton} ton</span>
+                    </div>
+                  )}
+
+                  {trip.volume_m3 && (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Package className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium text-muted-foreground">Volume</span>
+                      </div>
+                      <span className="font-medium">{trip.volume_m3} m³</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Vehicle Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Truck className="h-5 w-5" />
+                <span>Veículo</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {vehicle ? (
+                <>
+                  <div>
+                    <span className="text-sm font-medium text-muted-foreground">Tipo</span>
+                    <p className="text-base font-medium">{vehicle.tipo}</p>
+                  </div>
+                  <Separator />
+                  <div>
+                    <span className="text-sm font-medium text-muted-foreground">Capacidade</span>
+                    <p className="text-base font-medium">{vehicle.capacidade_ton} toneladas</p>
+                  </div>
+                  <Separator />
+                  <div>
+                    <span className="text-sm font-medium text-muted-foreground">Status</span>
+                    <p className="text-base font-medium">{vehicle.status}</p>
+                  </div>
+                </>
+              ) : (
+                <p className="text-muted-foreground">Carregando...</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Route Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <MapPin className="h-5 w-5" />
+                <span>Rota</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {route ? (
+                <>
+                  <div>
+                    <span className="text-sm font-medium text-muted-foreground">Origem</span>
+                    <p className="text-base font-medium">{route.origem}</p>
+                  </div>
+                  <Separator />
+                  <div>
+                    <span className="text-sm font-medium text-muted-foreground">Destino</span>
+                    <p className="text-base font-medium">{route.destino}</p>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-muted-foreground">Distância</span>
+                    <span className="font-medium">{route.distancia_km} km</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-muted-foreground">Tempo Previsto</span>
+                    <span className="font-medium">{route.tempo_estimado_h}h</span>
+                  </div>
+                </>
+              ) : (
+                <p className="text-muted-foreground">Carregando...</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column - Operational Calculations */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center space-x-2">
+                  <Calculator className="h-5 w-5" />
+                  <span>Cálculos Operacionais</span>
+                </CardTitle>
+                <CardDescription className="mt-2">
+                  Custos operacionais calculados automaticamente
+                </CardDescription>
+              </div>
               <Button 
                 variant="outline" 
                 size="sm"
@@ -348,102 +438,90 @@ export default function ViagemDetalhe() {
                 <span>Recalcular</span>
               </Button>
             </div>
-            <CardDescription>
-              Custos operacionais calculados automaticamente
-            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Fuel Section */}
+              <div className="space-y-3 p-4 rounded-lg bg-muted/30">
                 <div className="flex items-center space-x-2 text-sm font-medium">
-                  <Fuel className="h-4 w-4 text-muted-foreground" />
+                  <Fuel className="h-5 w-5 text-primary" />
                   <span>Combustível</span>
                 </div>
-                <div className="pl-6 space-y-1">
-                  <p className="text-sm text-muted-foreground">
-                    Consumo: {trip.consumo_combustivel_l?.toFixed(2) || '0.00'} L
-                  </p>
-                  <p className="text-sm font-medium">
-                    Custo: R$ {trip.custo_combustivel?.toFixed(2) || '0.00'}
-                  </p>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Consumo</span>
+                    <span className="font-medium">{trip.consumo_combustivel_l?.toFixed(2) || '0.00'} L</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Custo</span>
+                    <span className="text-lg font-bold text-primary">
+                      R$ {trip.custo_combustivel?.toFixed(2) || '0.00'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
+              {/* Tolls Section */}
+              <div className="space-y-3 p-4 rounded-lg bg-muted/30">
                 <div className="flex items-center space-x-2 text-sm font-medium">
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                  <span>Custos Variáveis</span>
-                </div>
-                <div className="pl-6">
-                  <p className="text-sm font-medium">
-                    R$ {trip.custo_variaveis?.toFixed(2) || '0.00'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2 text-sm font-medium">
-                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                  <MapPin className="h-5 w-5 text-primary" />
                   <span>Pedágios</span>
                 </div>
-                <div className="pl-6">
-                  <p className="text-sm font-medium">
+                <div className="flex justify-between items-center pt-2">
+                  <span className="text-sm text-muted-foreground">Total</span>
+                  <span className="text-lg font-bold text-primary">
                     R$ {trip.custo_pedagios?.toFixed(2) || '0.00'}
-                  </p>
+                  </span>
                 </div>
               </div>
 
-              <div className="space-y-2">
+              {/* Vehicle Costs Section */}
+              <div className="space-y-3 p-4 rounded-lg bg-muted/30">
                 <div className="flex items-center space-x-2 text-sm font-medium">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>Custo Fixo (Diário)</span>
+                  <Truck className="h-5 w-5 text-primary" />
+                  <span>Custos do Veículo</span>
                 </div>
-                <div className="pl-6">
-                  <p className="text-sm font-medium">
+                <div className="flex justify-between items-center pt-2">
+                  <span className="text-sm text-muted-foreground">Rateio Diário</span>
+                  <span className="text-lg font-bold text-primary">
                     R$ {trip.custo_fixo_rateado?.toFixed(2) || '0.00'}
-                  </p>
+                  </span>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2 text-sm font-medium">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span>Tempo Estimado</span>
+              {/* Total Cost Section */}
+              <div className="space-y-3 p-4 rounded-lg bg-primary/10 border-2 border-primary">
+                <div className="flex items-center space-x-2 text-sm font-medium text-primary">
+                  <Calculator className="h-5 w-5" />
+                  <span>CUSTO TOTAL ESTIMADO</span>
                 </div>
-                <div className="pl-6">
-                  <p className="text-sm font-medium">
-                    {trip.tempo_estimado_h?.toFixed(2) || '0.00'} horas
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2 border-l-2 border-primary pl-4">
-                <div className="text-sm font-medium text-primary">
-                  CUSTO TOTAL ESTIMADO
-                </div>
-                <div className="text-lg font-bold text-primary">
-                  R$ {trip.custo_total_estimado?.toFixed(2) || '0.00'}
+                <div className="flex justify-between items-center pt-2">
+                  <span className="text-sm text-muted-foreground">Total</span>
+                  <span className="text-2xl font-bold text-primary">
+                    R$ {trip.custo_total_estimado?.toFixed(2) || '0.00'}
+                  </span>
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        {/* Observations */}
-        {trip.observacoes && (
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <FileText className="h-5 w-5" />
-                <span>Observações</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground whitespace-pre-wrap">{trip.observacoes}</p>
-            </CardContent>
-          </Card>
-        )}
       </div>
+
+      {/* Observations */}
+      {trip.observacoes && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <FileText className="h-5 w-5" />
+              <span>Observações</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground whitespace-pre-wrap">{trip.observacoes}</p>
+          </CardContent>
+        </Card>
+      )}
+
 
       {/* Actions */}
       <div className="flex space-x-2">

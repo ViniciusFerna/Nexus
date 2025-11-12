@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +21,6 @@ interface ParametroGlobal {
 
 export default function ParametrosGlobais() {
   const { user } = useAuth();
-  const { canUpdate } = useRole();
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     preco_diesel_litro: "",
@@ -131,7 +129,7 @@ export default function ParametrosGlobais() {
     setHasChanges(true);
   };
 
-  const canModify = canUpdate("parametros_globais");
+  const canModify = true;
 
   if (isLoading) {
     return (

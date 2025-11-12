@@ -1,9 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/hooks/useAuth"
-import { useRole } from "@/hooks/useRole"
-import { LogOut, Truck, Route, MapPin, Play, DollarSign, BarChart3, Users, Home } from "lucide-react"
+import { LogOut, Truck, Route, MapPin, Play, DollarSign, BarChart3, Home } from "lucide-react"
 import { ReactNode, useMemo } from "react"
 import { useNavigate, useLocation, Link } from "react-router-dom"
 import {
@@ -44,43 +42,34 @@ const menuItems = [
     iconClass: "text-warning",
     shadowClass: "group-hover:shadow-warning/50"
   },
-  { 
-    title: "Simulações", 
-    url: "/simulations", 
-    icon: Play,
-    bgClass: "bg-primary/20 hover:bg-primary/30",
-    iconClass: "text-primary",
-    shadowClass: "group-hover:shadow-primary/50"
-  },
-  { 
-    title: "Custos", 
-    url: "/custos", 
-    icon: DollarSign,
-    bgClass: "bg-success/20 hover:bg-success/30",
-    iconClass: "text-success",
-    shadowClass: "group-hover:shadow-success/50"
-  },
-  { 
-    title: "Relatórios", 
-    url: "/reports", 
-    icon: BarChart3,
-    bgClass: "bg-warning/20 hover:bg-warning/30",
-    iconClass: "text-warning",
-    shadowClass: "group-hover:shadow-warning/50"
-  },
-  { 
-    title: "Usuários", 
-    url: "/users", 
-    icon: Users,
-    bgClass: "bg-primary/20 hover:bg-primary/30",
-    iconClass: "text-primary",
-    shadowClass: "group-hover:shadow-primary/50"
-  },
-];
+    { 
+      title: "Simulações", 
+      url: "/simulations", 
+      icon: Play,
+      bgClass: "bg-primary/20 hover:bg-primary/30",
+      iconClass: "text-primary",
+      shadowClass: "group-hover:shadow-primary/50"
+    },
+    { 
+      title: "Parâmetros", 
+      url: "/custos", 
+      icon: DollarSign,
+      bgClass: "bg-success/20 hover:bg-success/30",
+      iconClass: "text-success",
+      shadowClass: "group-hover:shadow-success/50"
+    },
+    { 
+      title: "Relatórios", 
+      url: "/reports", 
+      icon: BarChart3,
+      bgClass: "bg-warning/20 hover:bg-warning/30",
+      iconClass: "text-warning",
+      shadowClass: "group-hover:shadow-warning/50"
+    },
+  ];
 
 export function SimpleLayout({ children }: SimpleLayoutProps) {
   const { user, signOut } = useAuth();
-  const { role } = useRole();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -96,32 +85,6 @@ export function SimpleLayout({ children }: SimpleLayoutProps) {
     return user?.email?.[0]?.toUpperCase() || 'U';
   };
 
-  const getRoleLabel = (role: string | null) => {
-    switch (role) {
-      case 'admin':
-        return 'Administrador';
-      case 'docente':
-        return 'Docente';
-      case 'aluno':
-        return 'Aluno';
-      default:
-        return 'Usuário';
-    }
-  };
-
-  const getRoleColor = (role: string | null) => {
-    switch (role) {
-      case 'admin':
-        return 'bg-red-500/10 text-red-700 border-red-200';
-      case 'docente':
-        return 'bg-blue-500/10 text-blue-700 border-blue-200';
-      case 'aluno':
-        return 'bg-green-500/10 text-green-700 border-green-200';
-      default:
-        return 'bg-gray-500/10 text-gray-700 border-gray-200';
-    }
-  };
-
   const getPageTitle = (pathname: string): string => {
     const routes: Record<string, string> = {
       '/': 'Início',
@@ -131,7 +94,7 @@ export function SimpleLayout({ children }: SimpleLayoutProps) {
       '/simulations': 'Simulações',
       '/simulations/create': 'Nova Simulação',
       '/simulations/compare': 'Comparar Simulações',
-      '/custos': 'Custos',
+      '/custos': 'Parâmetros',
       '/custos/fixos': 'Custos Fixos',
       '/custos/variaveis': 'Custos Variáveis',
       '/pedagios': 'Pedágios',
@@ -178,14 +141,9 @@ export function SimpleLayout({ children }: SimpleLayoutProps) {
           
           {/* User Menu */}
           <div className="flex items-center gap-3">
-            <div className="flex flex-col items-end gap-1">
-              <p className="text-sm font-medium leading-none">
-                {user?.user_metadata?.full_name || user?.email}
-              </p>
-              <Badge className={getRoleColor(role)}>
-                {getRoleLabel(role)}
-              </Badge>
-            </div>
+            <p className="text-sm font-medium leading-none">
+              {user?.user_metadata?.full_name || user?.email}
+            </p>
             <Avatar className="h-8 w-8">
               <AvatarFallback className="bg-primary/10 text-primary">
                 {getUserInitials()}

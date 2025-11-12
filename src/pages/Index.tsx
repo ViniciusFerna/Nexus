@@ -1,5 +1,3 @@
-
-import { AdminSetup } from "@/components/AdminSetup"
 import { useNavigate } from "react-router-dom"
 import { 
   Truck, 
@@ -7,8 +5,7 @@ import {
   MapPin, 
   Play,
   DollarSign, 
-  BarChart3,
-  Users
+  BarChart3
 } from "lucide-react"
 
 const Index = () => {
@@ -48,7 +45,7 @@ const Index = () => {
       shadowClass: "group-hover:shadow-primary/50"
     },
     { 
-      title: "Custos", 
+      title: "Parâmetros", 
       url: "/custos", 
       icon: DollarSign,
       bgClass: "bg-success/20 hover:bg-success/30",
@@ -63,21 +60,10 @@ const Index = () => {
       iconClass: "text-warning",
       shadowClass: "group-hover:shadow-warning/50"
     },
-    { 
-      title: "Usuários", 
-      url: "/users", 
-      icon: Users,
-      bgClass: "bg-primary/20 hover:bg-primary/30",
-      iconClass: "text-primary",
-      shadowClass: "group-hover:shadow-primary/50"
-    },
   ];
 
   return (
     <div className="min-h-[80vh] flex flex-col">
-      {/* Admin Setup for first user */}
-      <AdminSetup />
-
       {/* Hero Section */}
       <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-background rounded-3xl p-12 mb-12 relative overflow-hidden">
         <div className="absolute inset-0 bg-grid-primary/5 [mask-image:linear-gradient(0deg,transparent,black)]"></div>
