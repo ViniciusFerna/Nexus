@@ -39,7 +39,7 @@ export default function Simulations() {
       setSimulations(data || []);
     } catch (error) {
       console.error("Error fetching simulations:", error);
-      toast.error("Erro ao carregar simulações");
+      toast.error("❌ Erro ao carregar simulações. Verifique sua conexão ou se você já criou simulações no sistema.");
     }
     setLoading(false);
   };
@@ -52,10 +52,10 @@ export default function Simulations() {
 
       if (error) throw error;
       toast.success("Simulação executada com sucesso!");
-      fetchSimulations(); // Refresh data
+      fetchSimulations(); // Atualizar dados
     } catch (error) {
       console.error("Error running simulation:", error);
-      toast.error("Erro ao executar simulação");
+      toast.error("❌ Erro ao executar simulação. Verifique se a viagem base ainda existe e se todos os parâmetros estão válidos. Tente novamente.");
     }
   };
 
@@ -87,10 +87,10 @@ export default function Simulations() {
 
       if (error) throw error;
       toast.success("Simulação excluída com sucesso!");
-      fetchSimulations(); // Refresh data
+      fetchSimulations(); // Atualizar dados
     } catch (error) {
       console.error("Error deleting simulation:", error);
-      toast.error("Erro ao excluir simulação");
+      toast.error("❌ Erro ao excluir simulação. Ela pode estar em uso em comparações ou relatórios. Tente novamente mais tarde.");
     }
   };
 
@@ -132,7 +132,7 @@ export default function Simulations() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Simulações</h1>

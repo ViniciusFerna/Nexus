@@ -7,7 +7,7 @@ export async function fetchTripData(
 ) {
   const { data, error } = await supabaseClient
     .from('trips')
-    .select('id, vehicle_id, route_id, peso_ton, receita')
+    .select('id, vehicle_id, route_id, peso_ton, receita, custo_extra, custo_extra_descricao')
     .eq('id', tripId)
     .eq('user_id', userId)
     .single();

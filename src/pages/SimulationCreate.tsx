@@ -77,14 +77,14 @@ export default function SimulationCreate() {
       setTrips(tripsWithRelations);
     } catch (error) {
       console.error("Error fetching trips:", error);
-      toast.error("Erro ao carregar viagens");
+      toast.error("❌ Erro ao carregar viagens. Verifique sua conexão com a internet ou se você já criou viagens no sistema. Você precisa ter pelo menos uma viagem para criar simulações.");
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.viagem_base_id || !formData.nome_cenario) {
-      toast.error("Viagem base e nome do cenário são obrigatórios");
+      toast.error("📋 Campos obrigatórios faltando! Para criar uma simulação, você precisa escolher uma viagem base (o cenário real que será simulado) e dar um nome ao cenário (ex: 'Simulação com diesel mais caro').");
       return;
     }
 
@@ -118,11 +118,11 @@ export default function SimulationCreate() {
 
       if (runError) throw runError;
 
-      toast.success("Simulação criada e executada com sucesso!");
+      toast.success("✅ Simulação criada e executada com sucesso! Você pode agora comparar os resultados com outros cenários na página de simulações.");
       navigate("/simulations");
     } catch (error) {
       console.error("Error creating simulation:", error);
-      toast.error("Erro ao criar simulação");
+      toast.error("❌ Erro ao criar simulação. Verifique se todos os valores numéricos estão corretos (sem letras) e se a viagem base existe. Tente novamente.");
     }
     setLoading(false);
   };

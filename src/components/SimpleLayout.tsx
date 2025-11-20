@@ -12,6 +12,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import nexusLogo from "@/assets/nexus-logo.png"
 
 interface SimpleLayoutProps {
   children: ReactNode
@@ -125,17 +126,26 @@ export function SimpleLayout({ children }: SimpleLayoutProps) {
   }, [location.pathname]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      {/* Watermark */}
+      <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-0">
+        <img 
+          src={nexusLogo} 
+          alt="" 
+          className="w-[500px] h-[500px] object-contain opacity-[0.05]"
+        />
+      </div>
+      
       {/* Header - Fixed height to prevent layout shift */}
-      <header className="border-b bg-card px-6 py-4 h-[72px] flex items-center">
+      <header className="border-b bg-card px-6 py-4 h-[72px] flex items-center relative z-10">
         <div className="flex items-center justify-between max-w-7xl mx-auto w-full">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
               <Truck className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-foreground">TMS Didático — SENAI</h1>
-              <p className="text-xs text-muted-foreground">Sistema Educacional</p>
+              <h1 className="text-xl font-bold text-foreground">NEXUS</h1>
+              <p className="text-xs text-muted-foreground">Logistics Simulation</p>
             </div>
           </div>
           
@@ -165,7 +175,7 @@ export function SimpleLayout({ children }: SimpleLayoutProps) {
       {/* Icon Menu - Only show on non-home pages - Fixed height to prevent layout shift */}
       {location.pathname !== '/' && (
         <>
-          <div className="border-b bg-card/50 py-6 min-h-[140px] flex items-center">
+          <div className="border-b bg-card/50 py-6 min-h-[140px] flex items-center relative z-10">
             <div className="max-w-7xl mx-auto px-6 w-full">
               <div className="flex gap-6 justify-center flex-wrap">
                 {menuItems.map((item) => (
@@ -197,7 +207,7 @@ export function SimpleLayout({ children }: SimpleLayoutProps) {
           </div>
           
           {/* Breadcrumbs - Fixed height to prevent layout shift */}
-          <div className="bg-background border-b min-h-[52px] flex items-center">
+          <div className="bg-background border-b min-h-[52px] flex items-center relative z-10">
             <div className="max-w-7xl mx-auto px-6 py-3 w-full">
               <Breadcrumb>
                 <BreadcrumbList>
@@ -226,7 +236,7 @@ export function SimpleLayout({ children }: SimpleLayoutProps) {
       )}
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-6">
+      <main className="max-w-7xl mx-auto px-6 py-6 relative z-10">
         {children}
       </main>
     </div>

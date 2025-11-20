@@ -3,10 +3,11 @@ import {
   Route, 
   Play,
   BarChart3, 
-  LayoutDashboard,
+  Home,
   Users,
   DollarSign,
-  MapPin
+  MapPin,
+  Package
 } from "lucide-react"
 import { NavLink, useLocation } from "react-router-dom"
 
@@ -22,9 +23,10 @@ import {
 } from "@/components/ui/sidebar"
 
 const mainItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Início", url: "/", icon: Home },
   { title: "Veículos", url: "/vehicles", icon: Truck },
   { title: "Rotas", url: "/routes", icon: Route },
+  { title: "Cargas", url: "/cargo", icon: Package },
   { title: "Viagens", url: "/viagens", icon: MapPin },
   { title: "Simulações", url: "/simulations", icon: Play },
 ]
@@ -55,8 +57,8 @@ export function AppSidebar() {
               <Truck className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <h2 className="font-bold text-lg text-sidebar-foreground">TMS Didático — SENAI</h2>
-              <p className="text-xs text-sidebar-foreground/60">Sistema Educacional</p>
+              <h2 className="font-bold text-lg text-sidebar-foreground">NEXUS</h2>
+              <p className="text-xs text-sidebar-foreground/60">Logistics Simulation</p>
             </div>
           </div>
         </div>

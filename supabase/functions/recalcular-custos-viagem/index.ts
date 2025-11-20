@@ -56,10 +56,29 @@ serve(async (req) => {
     const params = await fetchGlobalParameters(supabaseClient, user.id)
     const vehicleCosts = await fetchVehicleCosts(supabaseClient, user.id, trip.vehicle_id)
     
-    // Use simplified cost model - no variable/fixed costs, tolls from route
-    const variableCosts: any[] = []
-    const fixedCosts: any[] = []
-    const tolls = route.valor_pedagio ? [{ valor: route.valor_pedagio }] : []
+    // Fetch active variable and fixed costs
+    const { data: variableCostsData } = await supabaseClient
+      .from('custos_variaveis')
+      .select('valor_por_km')
+      .eq('user_id', user.id)
+      .eq('ativo', true)
+    
+    const { data: fixedCostsData } = await supabaseClient
+      .from('custos_fixos')
+      .select('valor_mensal')
+      .eq('user_id', user.id)
+      .eq('ativo', true)
+    
+    // Fetch route tolls
+    const { data: tollsData } = await supabaseClient
+      .from('pedagios')
+      .select('valor')
+      .eq('user_id', user.id)
+      .eq('rota_id', trip.route_id)
+    
+    const variableCosts = variableCostsData || []
+    const fixedCosts = fixedCostsData || []
+    const tolls = tollsData || []
 
     // Perform calculations using shared function
     const resultado = calcularCustos({
@@ -71,6 +90,7 @@ serve(async (req) => {
       pedagios: tolls,
       custosFixos: fixedCosts,
       custosVeiculo: vehicleCosts,
+      custoExtra: Number(trip.custo_extra) || 0,
       pesoTon: trip.peso_ton,
       receita: trip.receita,
     })
@@ -110,7 +130,8 @@ serve(async (req) => {
           custo_variaveis: resultado.custoVariaveis,
           custo_pedagios: resultado.custoPedagios,
           custo_fixo_rateado: resultado.custoFixoRateado,
-          custo_total_estimado: resultado.custoTotal,
+          custo_extra: custoExtra,
+          custo_total_estimado: custoTotalComExtra,
           tempo_estimado_h: resultado.tempoEstimadoH
         }
       }),

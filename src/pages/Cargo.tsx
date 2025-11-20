@@ -60,7 +60,7 @@ export default function Cargo() {
     status: "active"
   });
 
-  // Fetch cargo data
+  // Buscar dados de carga
   const { data: cargo = [], isLoading } = useQuery({
     queryKey: ["cargo"],
     queryFn: async () => {
@@ -427,8 +427,8 @@ export default function Cargo() {
               cargo.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">{item.name}</TableCell>
-                  <TableCell>{item.weight.toLocaleString()} kg</TableCell>
-                  <TableCell>R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
+                  <TableCell>{Number(item.weight || 0).toLocaleString('pt-BR')} kg</TableCell>
+                  <TableCell>R$ {Number(item.value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                   <TableCell>{getTypeLabel(item.type)}</TableCell>
                   <TableCell>
                     <Badge variant={getStatusColor(item.status)}>

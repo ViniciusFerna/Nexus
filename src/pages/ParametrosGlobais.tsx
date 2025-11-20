@@ -46,7 +46,7 @@ export default function ParametrosGlobais() {
     enabled: !!user?.id,
   });
 
-  // Update form data when parametros data changes
+  // Atualizar dados do formulário quando parâmetros mudarem
   useEffect(() => {
     if (parametros) {
       setFormData({
@@ -174,8 +174,17 @@ export default function ParametrosGlobais() {
                 min="0"
                 value={formData.preco_diesel_litro}
                 onChange={(e) => handleInputChange("preco_diesel_litro", e.target.value)}
+                onInvalid={(e) => {
+                  const input = e.target as HTMLInputElement;
+                  input.setCustomValidity('⛽ O preço do diesel deve ser maior que R$ 0. Verifique o preço atual nos postos da sua região. Em 2024, o preço médio no Brasil varia entre R$ 5 e R$ 7 por litro.');
+                }}
+                onInput={(e) => {
+                  const input = e.target as HTMLInputElement;
+                  input.setCustomValidity('');
+                }}
                 placeholder="5.50"
                 disabled={!canModify}
+                title="Preço médio do diesel por litro. Consulte os postos da sua região."
               />
               <p className="text-sm text-muted-foreground">
                 Valor atual do diesel utilizado nos cálculos de combustível
@@ -195,8 +204,23 @@ export default function ParametrosGlobais() {
                 max="120"
                 value={formData.velocidade_media_kmh}
                 onChange={(e) => handleInputChange("velocidade_media_kmh", e.target.value)}
+                onInvalid={(e) => {
+                  const input = e.target as HTMLInputElement;
+                  if (input.validity.rangeUnderflow) {
+                    input.setCustomValidity('🚛 A velocidade mínima é 1 km/h. Considere velocidades realistas para o tipo de via.');
+                  } else if (input.validity.rangeOverflow) {
+                    input.setCustomValidity('🚛 A velocidade máxima é 120 km/h (limite das rodovias brasileiras). Caminhões geralmente trafegam entre 60-90 km/h.');
+                  } else {
+                    input.setCustomValidity('🚛 Digite uma velocidade válida entre 1 e 120 km/h.');
+                  }
+                }}
+                onInput={(e) => {
+                  const input = e.target as HTMLInputElement;
+                  input.setCustomValidity('');
+                }}
                 placeholder="60"
                 disabled={!canModify}
+                title="Velocidade média considerando tipo de via, tráfego e paradas. Ex: rodovia = 70-90 km/h, urbano = 30-50 km/h"
               />
               <p className="text-sm text-muted-foreground">
                 Velocidade média considerada para cálculo de tempo de viagem

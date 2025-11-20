@@ -44,11 +44,11 @@ import {
   Clock,
   PlayCircle,
   Eye,
-  Filter,
   Weight,
   Package,
   Download,
-  FileText
+  FileText,
+  DollarSign
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -64,6 +64,7 @@ interface Trip {
   status: 'Planejada' | 'Em_Andamento' | 'Concluída';
   peso_ton?: number;
   volume_m3?: number;
+  receita?: number;
   observacoes?: string;
   created_at: string;
   updated_at: string;
@@ -84,62 +85,60 @@ interface Route {
   tempo_estimado_h: number;
 }
 
+interface Cargo {
+  id: string;
+  name: string;
+  weight: number;
+  type: string;
+  status: string;
+}
+
 export default function Viagens() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [startDateFilter, setStartDateFilter] = useState<string>('');
-  const [endDateFilter, setEndDateFilter] = useState<string>('');
 
   const [formData, setFormData] = useState<{
     vehicle_id: string;
     route_id: string;
+    cargo_id: string;
     start_date: string;
     end_date: string;
     status: 'Planejada' | 'Em_Andamento' | 'Concluída';
     peso_ton: string;
     volume_m3: string;
+    receita: string;
+    custo_extra: string;
+    custo_extra_descricao: string;
     observacoes: string;
   }>({
     vehicle_id: "",
     route_id: "",
+    cargo_id: "",
     start_date: "",
     end_date: "",
     status: "Planejada",
     peso_ton: "",
     volume_m3: "",
+    receita: "",
+    custo_extra: "",
+    custo_extra_descricao: "",
     observacoes: "",
   });
 
-  // Fetch trips with filters
+  // Buscar viagens
   const { data: trips = [], isLoading } = useQuery({
-    queryKey: ["trips", statusFilter, startDateFilter, endDateFilter],
+    queryKey: ["trips"],
     queryFn: async () => {
       if (!user?.id) return [];
       
-      let query = supabase
+      const { data, error } = await supabase
         .from("trips")
         .select("*")
-        .eq("user_id", user.id);
-
-      if (statusFilter !== 'all') {
-        query = query.eq("status", statusFilter);
-      }
-      
-      if (startDateFilter) {
-        query = query.gte("start_date", startDateFilter);
-      }
-      
-      if (endDateFilter) {
-        query = query.lte("end_date", endDateFilter);
-      }
-
-      query = query.order("start_date", { ascending: false });
-      
-      const { data, error } = await query;
+        .eq("user_id", user.id)
+        .order("start_date", { ascending: false });
       
       if (error) throw error;
       return data as Trip[];
@@ -147,7 +146,7 @@ export default function Viagens() {
     enabled: !!user?.id,
   });
 
-  // Fetch vehicles for dropdown
+  // Buscar veículos para dropdown
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles"],
     queryFn: async () => {
@@ -165,7 +164,7 @@ export default function Viagens() {
     enabled: !!user?.id,
   });
 
-  // Fetch routes for dropdown
+  // Buscar rotas para dropdown
   const { data: routes = [] } = useQuery({
     queryKey: ["routes"],
     queryFn: async () => {
@@ -182,19 +181,62 @@ export default function Viagens() {
     enabled: !!user?.id,
   });
 
-  // Create trip mutation
+  // Buscar cargas para dropdown
+  const { data: cargo = [] } = useQuery({
+    queryKey: ["cargo"],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("cargo")
+        .select("id, name, weight, type, status")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .order("name");
+      
+      if (error) throw error;
+      return data as Cargo[];
+    },
+    enabled: !!user?.id,
+  });
+
+  // Mutation para criar viagem
   const createTripMutation = useMutation({
     mutationFn: async (tripData: typeof formData) => {
       if (!user?.id) throw new Error("User not authenticated");
       
+      // Validações educativas
+      if (!tripData.vehicle_id || !tripData.route_id || !tripData.start_date || !tripData.end_date) {
+        throw new Error("Por favor, preencha todos os campos obrigatórios. Uma viagem precisa ter veículo, rota e datas definidas para ser planejada corretamente.");
+      }
+
+      // Validar peso vs capacidade do veículo
+      if (tripData.peso_ton && tripData.vehicle_id) {
+        const vehicle = vehicles.find(v => v.id === tripData.vehicle_id);
+        const peso = parseFloat(tripData.peso_ton);
+        if (vehicle && peso > vehicle.capacidade_ton) {
+          throw new Error(`⚠️ Sobrecarga detectada! O peso da carga (${peso.toFixed(2)} ton) excede a capacidade do veículo (${vehicle.capacidade_ton.toFixed(2)} ton). Isso é perigoso e pode causar multas ou acidentes. Escolha um veículo maior ou reduza a carga.`);
+        }
+      }
+
+      // Validar datas
+      const startDate = new Date(tripData.start_date);
+      const endDate = new Date(tripData.end_date);
+      if (endDate < startDate) {
+        throw new Error("📅 Data inválida! A data de término não pode ser anterior à data de início. Isso violaria a lógica temporal da viagem.");
+      }
+      
       const payload = {
         vehicle_id: tripData.vehicle_id,
         route_id: tripData.route_id,
+        cargo_id: tripData.cargo_id && tripData.cargo_id !== "none" ? tripData.cargo_id : null,
         start_date: tripData.start_date,
         end_date: tripData.end_date,
         status: tripData.status,
         peso_ton: tripData.peso_ton ? parseFloat(tripData.peso_ton) : null,
         volume_m3: tripData.volume_m3 ? parseFloat(tripData.volume_m3) : null,
+        receita: tripData.receita ? parseFloat(tripData.receita) : null,
+        custo_extra: tripData.custo_extra ? parseFloat(tripData.custo_extra) : 0,
+        custo_extra_descricao: tripData.custo_extra_descricao || null,
         observacoes: tripData.observacoes || null,
         user_id: user.id
       };
@@ -209,45 +251,52 @@ export default function Viagens() {
       return data;
     },
     onSuccess: async (data) => {
-      // Automatically calculate trip costs
+      // Calcular custos da viagem automaticamente
       try {
         await supabase.functions.invoke('recalcular-custos-viagem', {
           body: { viagemId: data.id }
         });
       } catch (error) {
         console.error('Erro ao calcular custos automaticamente:', error);
-        // Don't show error to user, as trip was created successfully
+        toast({
+          title: "⚠️ Atenção",
+          description: "A viagem foi criada, mas não conseguimos calcular os custos automaticamente. Você pode recalcular manualmente na página de detalhes.",
+          variant: "default",
+        });
       }
       
       queryClient.invalidateQueries({ queryKey: ["trips"] });
       resetForm();
       setIsDialogOpen(false);
       toast({
-        title: "Viagem criada",
-        description: "A viagem foi planejada com sucesso e os custos foram calculados.",
+        title: "✅ Viagem criada com sucesso!",
+        description: "Sua viagem foi planejada e os custos foram calculados. Você pode visualizar os detalhes clicando no ícone de olho.",
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Erro ao criar viagem",
-        description: error.message || "Não foi possível planejar a viagem.",
+        title: "❌ Erro ao criar viagem",
+        description: error.message || "Não foi possível planejar a viagem. Verifique se todos os campos estão preenchidos corretamente.",
         variant: "destructive",
       });
       console.error("Error creating trip:", error);
     },
   });
 
-  // Update trip mutation
+  // Mutation para atualizar viagem
   const updateTripMutation = useMutation({
     mutationFn: async ({ id, ...tripData }: { id: string } & typeof formData) => {
       const payload = {
         vehicle_id: tripData.vehicle_id,
         route_id: tripData.route_id,
+        cargo_id: tripData.cargo_id && tripData.cargo_id !== "none" ? tripData.cargo_id : null,
         start_date: tripData.start_date,
         end_date: tripData.end_date,
         status: tripData.status,
         peso_ton: tripData.peso_ton ? parseFloat(tripData.peso_ton) : null,
         volume_m3: tripData.volume_m3 ? parseFloat(tripData.volume_m3) : null,
+        custo_extra: tripData.custo_extra ? parseFloat(tripData.custo_extra) : 0,
+        custo_extra_descricao: tripData.custo_extra_descricao || null,
         observacoes: tripData.observacoes || null,
       };
 
@@ -262,7 +311,7 @@ export default function Viagens() {
       return data;
     },
     onSuccess: async (data) => {
-      // Automatically recalculate trip costs after update
+      // Recalcular custos da viagem automaticamente após atualização
       try {
         await supabase.functions.invoke('recalcular-custos-viagem', {
           body: { viagemId: data.id }
@@ -281,15 +330,15 @@ export default function Viagens() {
     },
     onError: (error: any) => {
       toast({
-        title: "Erro ao atualizar viagem",
-        description: error.message || "Não foi possível atualizar a viagem.",
+        title: "❌ Erro ao atualizar viagem",
+        description: error.message || "Não foi possível atualizar a viagem. Verifique se todos os dados estão corretos e tente novamente.",
         variant: "destructive",
       });
       console.error("Error updating trip:", error);
     },
   });
 
-  // Delete trip mutation
+  // Mutation para deletar viagem
   const deleteTripMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -308,8 +357,8 @@ export default function Viagens() {
     },
     onError: (error: any) => {
       toast({
-        title: "Erro ao excluir viagem",
-        description: "Não foi possível remover a viagem.",
+        title: "❌ Erro ao excluir viagem",
+        description: "Não foi possível remover a viagem. Ela pode estar sendo usada em simulações ou relatórios. Tente novamente mais tarde.",
         variant: "destructive",
       });
       console.error("Error deleting trip:", error);
@@ -320,11 +369,15 @@ export default function Viagens() {
     setFormData({
       vehicle_id: "",
       route_id: "",
+      cargo_id: "none",
       start_date: "",
       end_date: "",
       status: "Planejada",
       peso_ton: "",
       volume_m3: "",
+      receita: "",
+      custo_extra: "",
+      custo_extra_descricao: "",
       observacoes: "",
     });
     setEditingTrip(null);
@@ -349,11 +402,15 @@ export default function Viagens() {
     setFormData({
       vehicle_id: trip.vehicle_id,
       route_id: trip.route_id,
+      cargo_id: (trip as any).cargo_id || "none",
       start_date: trip.start_date,
       end_date: trip.end_date,
       status: trip.status,
       peso_ton: trip.peso_ton?.toString() || "",
       volume_m3: trip.volume_m3?.toString() || "",
+      receita: trip.receita?.toString() || "",
+      custo_extra: (trip as any).custo_extra?.toString() || "",
+      custo_extra_descricao: (trip as any).custo_extra_descricao || "",
       observacoes: trip.observacoes || "",
     });
     setIsDialogOpen(true);
@@ -380,7 +437,27 @@ export default function Viagens() {
       return;
     }
 
-    // Validate weight capacity
+    // Validar peso não negativo
+    if (formData.peso_ton && parseFloat(formData.peso_ton) < 0) {
+      toast({
+        title: "Valor inválido",
+        description: "O peso não pode ser negativo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validar volume não negativo
+    if (formData.volume_m3 && parseFloat(formData.volume_m3) < 0) {
+      toast({
+        title: "Valor inválido",
+        description: "O volume não pode ser negativo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validar capacidade de peso
     if (formData.peso_ton) {
       const peso = parseFloat(formData.peso_ton);
       const vehicle = vehicles.find(v => v.id === formData.vehicle_id);
@@ -392,6 +469,16 @@ export default function Viagens() {
         });
         return;
       }
+    }
+
+    // Validar custo extra não negativo
+    if (formData.custo_extra && parseFloat(formData.custo_extra) < 0) {
+      toast({
+        title: "Valor inválido",
+        description: "O custo extra não pode ser negativo.",
+        variant: "destructive",
+      });
+      return;
     }
 
     if (editingTrip) {
@@ -578,6 +665,42 @@ export default function Viagens() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
+                {/* Cargo Selection */}
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="cargo_id">Carga (Opcional)</Label>
+                  <Select 
+                    value={formData.cargo_id} 
+                    onValueChange={(value) => {
+                      setFormData(prev => ({ ...prev, cargo_id: value }));
+                      // Auto-fill weight from cargo
+                      if (value !== "none") {
+                        const selectedCargo = cargo.find(c => c.id === value);
+                        if (selectedCargo && !formData.peso_ton) {
+                          setFormData(prev => ({ 
+                            ...prev, 
+                            cargo_id: value,
+                            peso_ton: (selectedCargo.weight / 1000).toString() // Convert kg to ton
+                          }));
+                        }
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione uma carga (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhuma carga</SelectItem>
+                      {cargo.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name} - {item.weight}kg ({item.type})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 {/* Start Date */}
                 <div className="space-y-2">
                   <Label htmlFor="start_date">Data de Início *</Label>
@@ -603,7 +726,7 @@ export default function Viagens() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-4 gap-4">
                 {/* Weight */}
                 <div className="space-y-2">
                   <Label htmlFor="peso_ton" className="flex items-center space-x-1">
@@ -614,9 +737,19 @@ export default function Viagens() {
                     type="number"
                     id="peso_ton"
                     step="0.01"
+                    min="0"
                     value={formData.peso_ton}
                     onChange={(e) => setFormData(prev => ({ ...prev, peso_ton: e.target.value }))}
+                    onInvalid={(e) => {
+                      const input = e.target as HTMLInputElement;
+                      input.setCustomValidity('⚖️ O peso deve ser maior que 0. Verifique se você está usando toneladas (1 ton = 1.000 kg).');
+                    }}
+                    onInput={(e) => {
+                      const input = e.target as HTMLInputElement;
+                      input.setCustomValidity('');
+                    }}
                     placeholder="0.00"
+                    title="Peso da carga em toneladas. Ex: 25 toneladas = 25.000 kg"
                   />
                 </div>
 
@@ -630,32 +763,91 @@ export default function Viagens() {
                     type="number"
                     id="volume_m3"
                     step="0.01"
+                    min="0"
                     value={formData.volume_m3}
                     onChange={(e) => setFormData(prev => ({ ...prev, volume_m3: e.target.value }))}
+                    onInvalid={(e) => {
+                      const input = e.target as HTMLInputElement;
+                      input.setCustomValidity('📦 O volume deve ser maior que 0. Use metros cúbicos (m³) como unidade.');
+                    }}
+                    onInput={(e) => {
+                      const input = e.target as HTMLInputElement;
+                      input.setCustomValidity('');
+                    }}
                     placeholder="0.00"
+                    title="Volume da carga em metros cúbicos. Ex: 50 m³"
                   />
                 </div>
 
-                {/* Status */}
+                {/* Receita */}
                 <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
-                  <Select 
-                    value={formData.status} 
-                    onValueChange={(value: 'Planejada' | 'Em_Andamento' | 'Concluída') => 
-                      setFormData(prev => ({ ...prev, status: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Planejada">Planejada</SelectItem>
-                      <SelectItem value="Em_Andamento">Em Andamento</SelectItem>
-                      <SelectItem value="Concluída">Concluída</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="receita" className="flex items-center space-x-1">
+                    <DollarSign className="h-4 w-4 text-green-600" />
+                    <span>Receita (R$)</span>
+                  </Label>
+                  <Input
+                    type="number"
+                    id="receita"
+                    step="0.01"
+                    min="0"
+                    value={formData.receita}
+                    onChange={(e) => setFormData(prev => ({ ...prev, receita: e.target.value }))}
+                    placeholder="0.00"
+                    title="Valor que você receberá pelo frete. Use a calculadora de preço para sugerir um valor adequado."
+                  />
+                </div>
+
+                {/* Custo Extra */}
+                <div className="space-y-2">
+                  <Label htmlFor="custo_extra" className="flex items-center space-x-1">
+                    <DollarSign className="h-4 w-4" />
+                    <span>Custo Extra (R$)</span>
+                  </Label>
+                  <Input
+                    type="number"
+                    id="custo_extra"
+                    step="0.01"
+                    min="0"
+                    value={formData.custo_extra}
+                    onChange={(e) => setFormData(prev => ({ ...prev, custo_extra: e.target.value }))}
+                    placeholder="0.00"
+                  />
                 </div>
               </div>
+
+              {/* Status */}
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select 
+                  value={formData.status} 
+                  onValueChange={(value: 'Planejada' | 'Em_Andamento' | 'Concluída') => 
+                    setFormData(prev => ({ ...prev, status: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Planejada">Planejada</SelectItem>
+                    <SelectItem value="Em_Andamento">Em Andamento</SelectItem>
+                    <SelectItem value="Concluída">Concluída</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Extra Cost Description */}
+              {formData.custo_extra && parseFloat(formData.custo_extra) > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="custo_extra_descricao">Descrição do Custo Extra</Label>
+                  <Textarea
+                    id="custo_extra_descricao"
+                    value={formData.custo_extra_descricao}
+                    onChange={(e) => setFormData(prev => ({ ...prev, custo_extra_descricao: e.target.value }))}
+                    placeholder="Ex: Despesas de alimentação, hospedagem, taxa de urgência..."
+                    rows={2}
+                  />
+                </div>
+              )}
 
               {/* Observations */}
               <div className="space-y-2">
@@ -681,101 +873,6 @@ export default function Viagens() {
           </DialogContent>
         </Dialog>
         </div>
-      </div>
-
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Filter className="h-5 w-5" />
-            <span>Filtros</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os Status</SelectItem>
-                  <SelectItem value="Planejada">Planejada</SelectItem>
-                  <SelectItem value="Em_Andamento">Em Andamento</SelectItem>
-                  <SelectItem value="Concluída">Concluída</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Data Início (a partir de)</Label>
-              <Input
-                type="date"
-                value={startDateFilter}
-                onChange={(e) => setStartDateFilter(e.target.value)}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Data Término (até)</Label>
-              <Input
-                type="date"
-                value={endDateFilter}
-                onChange={(e) => setEndDateFilter(e.target.value)}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Statistics Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Viagens</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{trips.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Planejadas</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {trips.filter(t => t.status === 'Planejada').length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Em Andamento</CardTitle>
-            <PlayCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {trips.filter(t => t.status === 'Em_Andamento').length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Concluídas</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {trips.filter(t => t.status === 'Concluída').length}
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Trips Table */}

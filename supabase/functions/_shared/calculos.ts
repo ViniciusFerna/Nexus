@@ -12,8 +12,7 @@ export interface CalculationInput {
   custosFixos: Array<{ valor_mensal: number }>;
   custosVeiculo: Array<{ valor_mensal: number }>;
   entregasNaRota?: number;
-  custoVarExtraPorKm?: number;
-  pedagogiosExtra?: number;
+  custoExtra?: number;
   pesoTon?: number;
   receita?: number;
 }
@@ -26,9 +25,9 @@ export interface CalculationResult {
   custoFixoRateado: number;
   custoTotal: number;
   custoPorEntrega?: number;
+  custoPorTonKm?: number;
+  margemLucro?: number;
   tempoEstimadoH: number;
-  custoPorToneladaKm?: number;
-  margem?: number;
 }
 
 export function calcularCustos(input: CalculationInput): CalculationResult {
@@ -38,62 +37,74 @@ export function calcularCustos(input: CalculationInput): CalculationResult {
   // 2. Fuel cost = consumption × diesel_price_per_liter
   const custoCombustivel = consumoCombustivelL * input.precoDieselLitro;
 
-  // 3. Variable costs = (sum of active variable costs per km + extra) × distance_km
-  const somaCustosVariaveis = input.custosVariaveis.reduce(
+  // 3. Variable costs per km (R$)
+  const somaCustosVariaveisPorKm = input.custosVariaveis.reduce(
     (sum, custo) => sum + Number(custo.valor_por_km),
     0
   );
-  const custoVariaveis = (somaCustosVariaveis + (input.custoVarExtraPorKm || 0)) * input.distanciaKm;
+  const custoVariaveis = somaCustosVariaveisPorKm * input.distanciaKm;
 
-  // 4. Tolls = sum of tolls for the route + extra
-  const somaPedagios = input.pedagios.reduce(
+  // 4. Tolls (R$)
+  const custoPedagios = input.pedagios.reduce(
     (sum, pedagio) => sum + Number(pedagio.valor),
     0
   );
-  const custoPedagios = somaPedagios + (input.pedagogiosExtra || 0);
 
-  // 5. Daily fixed cost = (sum of active monthly fixed costs / 30) + (sum of vehicle costs / 30)
-  const somaCustosFixos = input.custosFixos.reduce(
-    (sum, custo) => sum + Number(custo.valor_mensal),
-    0
-  );
-  const somaCustosVeiculo = input.custosVeiculo.reduce(
-    (sum, custo) => sum + Number(custo.valor_mensal),
-    0
-  );
-  const custoFixoRateado = (somaCustosFixos + somaCustosVeiculo) / 30;
-
-  // 6. Total cost
-  const custoTotal = custoCombustivel + custoVariaveis + custoPedagios + custoFixoRateado;
-
-  // 7. Estimated time (h) = distance_km / average_speed_kmh
+  // 5. Estimated time (h)
   const tempoEstimadoH = input.distanciaKm / input.velocidadeMediaKmh;
 
-  // 8. Cost per delivery (optional)
-  const custoPorEntrega = input.entregasNaRota
+  // 6. Prorated fixed costs (CORRECTED: considers trip duration)
+  // Monthly fixed costs (general + vehicle-specific)
+  const somaCustosFixosMensais = input.custosFixos.reduce(
+    (sum, custo) => sum + Number(custo.valor_mensal),
+    0
+  );
+  
+  const somaCustosVeiculoMensais = input.custosVeiculo.reduce(
+    (sum, custo) => sum + Number(custo.valor_mensal),
+    0
+  );
+
+  const custoFixoMensalTotal = somaCustosFixosMensais + somaCustosVeiculoMensais;
+  
+  // Prorate proportional to trip days
+  const diasViagem = tempoEstimadoH / 24;
+  const custoFixoRateado = (custoFixoMensalTotal / 30) * diasViagem;
+
+  // 7. Extra cost (if any)
+  const custoExtra = Number(input.custoExtra) || 0;
+
+  // 8. Total cost (R$)
+  const custoTotal = 
+    custoCombustivel + 
+    custoVariaveis + 
+    custoPedagios + 
+    custoFixoRateado + 
+    custoExtra;
+
+  // 9. Additional metrics
+  const custoPorEntrega = input.entregasNaRota && input.entregasNaRota > 0
     ? custoTotal / input.entregasNaRota
     : undefined;
 
-  // 9. Cost per ton-km (optional)
-  const custoPorToneladaKm = input.pesoTon && input.pesoTon > 0
+  const custoPorTonKm = input.pesoTon && input.pesoTon > 0
     ? custoTotal / (input.pesoTon * input.distanciaKm)
     : undefined;
 
-  // 10. Profit margin (optional)
-  const margem = input.receita && input.receita > 0
+  const margemLucro = input.receita && input.receita > 0
     ? ((input.receita - custoTotal) / input.receita) * 100
     : undefined;
 
   return {
-    consumoCombustivelL,
-    custoCombustivel,
-    custoVariaveis,
-    custoPedagios,
-    custoFixoRateado,
-    custoTotal,
-    custoPorEntrega,
-    tempoEstimadoH,
-    custoPorToneladaKm,
-    margem,
+    consumoCombustivelL: Number(consumoCombustivelL.toFixed(2)),
+    custoCombustivel: Number(custoCombustivel.toFixed(2)),
+    custoVariaveis: Number(custoVariaveis.toFixed(2)),
+    custoPedagios: Number(custoPedagios.toFixed(2)),
+    custoFixoRateado: Number(custoFixoRateado.toFixed(2)),
+    custoTotal: Number(custoTotal.toFixed(2)),
+    custoPorEntrega: custoPorEntrega ? Number(custoPorEntrega.toFixed(2)) : undefined,
+    custoPorTonKm: custoPorTonKm ? Number(custoPorTonKm.toFixed(2)) : undefined,
+    margemLucro: margemLucro ? Number(margemLucro.toFixed(2)) : undefined,
+    tempoEstimadoH: Number(tempoEstimadoH.toFixed(2)),
   };
 }

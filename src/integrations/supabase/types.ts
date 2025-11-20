@@ -14,69 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      calculos: {
-        Row: {
-          consumo_combustivel_l: number | null
-          created_at: string
-          custo_combustivel: number | null
-          custo_fixo_rateado: number | null
-          custo_pedagios: number | null
-          custo_por_entrega: number
-          custo_por_km: number
-          custo_total: number
-          custo_variaveis: number | null
-          distancia_km: number
-          entregas_na_rota: number
-          id: string
-          nome_cenario: string | null
-          rota_id: string
-          tempo_estimado_h: number | null
-          updated_at: string
-          user_id: string
-          veiculo_id: string
-        }
-        Insert: {
-          consumo_combustivel_l?: number | null
-          created_at?: string
-          custo_combustivel?: number | null
-          custo_fixo_rateado?: number | null
-          custo_pedagios?: number | null
-          custo_por_entrega?: number
-          custo_por_km?: number
-          custo_total?: number
-          custo_variaveis?: number | null
-          distancia_km?: number
-          entregas_na_rota?: number
-          id?: string
-          nome_cenario?: string | null
-          rota_id: string
-          tempo_estimado_h?: number | null
-          updated_at?: string
-          user_id: string
-          veiculo_id: string
-        }
-        Update: {
-          consumo_combustivel_l?: number | null
-          created_at?: string
-          custo_combustivel?: number | null
-          custo_fixo_rateado?: number | null
-          custo_pedagios?: number | null
-          custo_por_entrega?: number
-          custo_por_km?: number
-          custo_total?: number
-          custo_variaveis?: number | null
-          distancia_km?: number
-          entregas_na_rota?: number
-          id?: string
-          nome_cenario?: string | null
-          rota_id?: string
-          tempo_estimado_h?: number | null
-          updated_at?: string
-          user_id?: string
-          veiculo_id?: string
-        }
-        Relationships: []
-      }
       cargo: {
         Row: {
           created_at: string
@@ -213,7 +150,6 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          moeda: string
           preco_diesel_litro: number
           updated_at: string
           user_id: string
@@ -222,7 +158,6 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
-          moeda?: string
           preco_diesel_litro?: number
           updated_at?: string
           user_id: string
@@ -231,7 +166,6 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
-          moeda?: string
           preco_diesel_litro?: number
           updated_at?: string
           user_id?: string
@@ -415,9 +349,12 @@ export type Database = {
       }
       trips: {
         Row: {
+          cargo_id: string | null
           consumo_combustivel_l: number | null
           created_at: string
           custo_combustivel: number | null
+          custo_extra: number | null
+          custo_extra_descricao: string | null
           custo_fixo_rateado: number | null
           custo_pedagios: number | null
           custo_total_estimado: number | null
@@ -437,9 +374,12 @@ export type Database = {
           volume_m3: number | null
         }
         Insert: {
+          cargo_id?: string | null
           consumo_combustivel_l?: number | null
           created_at?: string
           custo_combustivel?: number | null
+          custo_extra?: number | null
+          custo_extra_descricao?: string | null
           custo_fixo_rateado?: number | null
           custo_pedagios?: number | null
           custo_total_estimado?: number | null
@@ -459,9 +399,12 @@ export type Database = {
           volume_m3?: number | null
         }
         Update: {
+          cargo_id?: string | null
           consumo_combustivel_l?: number | null
           created_at?: string
           custo_combustivel?: number | null
+          custo_extra?: number | null
+          custo_extra_descricao?: string | null
           custo_fixo_rateado?: number | null
           custo_pedagios?: number | null
           custo_total_estimado?: number | null
@@ -480,7 +423,15 @@ export type Database = {
           vehicle_id?: string
           volume_m3?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "trips_cargo_id_fkey"
+            columns: ["cargo_id"]
+            isOneToOne: false
+            referencedRelation: "cargo"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vehicles: {
         Row: {

@@ -10,6 +10,7 @@ import { Plus, Edit, Trash2, MapPin, Clock, Search, Route, Upload, Download } fr
 import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import { CSVImportDialog } from '@/components/CSVImportDialog'
+import { TooltipInfo } from '@/components/TooltipInfo'
 
 interface Route {
   id: string
@@ -62,46 +63,100 @@ const RouteForm = ({
     
     <div className="grid grid-cols-2 gap-4">
       <div className="space-y-2">
-        <Label htmlFor="distancia_km">Distância (km)</Label>
+        <div className="flex items-center">
+          <Label htmlFor="distancia_km">Distância (km)</Label>
+          <TooltipInfo content="Distância total do percurso em quilômetros. Use ferramentas como Google Maps para medir rotas reais. Ex: 150 km é a distância entre São Paulo e Campinas." />
+        </div>
         <Input
           id="distancia_km"
           type="number"
           step="0.01"
           min="0.01"
-          placeholder="15.50"
+          max="10000"
+          placeholder="150.00"
           value={formData.distancia_km}
           onChange={(e) => setFormData({ ...formData, distancia_km: e.target.value })}
+          onInvalid={(e) => {
+            const input = e.target as HTMLInputElement;
+            if (input.validity.rangeUnderflow) {
+              input.setCustomValidity('📏 A distância mínima é 0.01 km (10 metros). Para distâncias menores, considere transporte local.');
+            } else if (input.validity.rangeOverflow) {
+              input.setCustomValidity('📏 A distância máxima é 10.000 km. A maior distância no Brasil é cerca de 4.000 km.');
+            } else {
+              input.setCustomValidity('📏 Digite uma distância válida entre 0.01 e 10.000 km.');
+            }
+          }}
+          onInput={(e) => {
+            const input = e.target as HTMLInputElement;
+            input.setCustomValidity('');
+          }}
           required
+          title="Distância da rota em quilômetros (ex: 150 km entre SP e Campinas)"
         />
       </div>
       
       <div className="space-y-2">
-        <Label htmlFor="tempo_estimado_h">Tempo estimado (horas)</Label>
+        <div className="flex items-center">
+          <Label htmlFor="tempo_estimado_h">Tempo estimado (horas)</Label>
+          <TooltipInfo content="Tempo previsto para completar o percurso. Considere velocidade média e condições de tráfego. Ex: 2,5 horas = 2 horas e 30 minutos." />
+        </div>
         <Input
           id="tempo_estimado_h"
           type="number"
           step="0.01"
           min="0.01"
+          max="100"
           placeholder="2.50"
           value={formData.tempo_estimado_h}
           onChange={(e) => setFormData({ ...formData, tempo_estimado_h: e.target.value })}
+          onInvalid={(e) => {
+            const input = e.target as HTMLInputElement;
+            if (input.validity.rangeUnderflow) {
+              input.setCustomValidity('⏱️ O tempo mínimo é 0.01 horas (36 segundos). Para viagens rápidas, use valores decimais como 0.5h (30 min).');
+            } else if (input.validity.rangeOverflow) {
+              input.setCustomValidity('⏱️ O tempo máximo é 100 horas. Para viagens longas, considere dividir em etapas.');
+            } else {
+              input.setCustomValidity('⏱️ Digite um tempo válido entre 0.01 e 100 horas.');
+            }
+          }}
+          onInput={(e) => {
+            const input = e.target as HTMLInputElement;
+            input.setCustomValidity('');
+          }}
           required
+          title="Tempo estimado em horas. Ex: 2.5h = 2 horas e 30 minutos"
         />
       </div>
     </div>
 
     <div className="space-y-2">
-      <Label htmlFor="valor_pedagio">Valor do Pedágio (R$)</Label>
+      <div className="flex items-center">
+        <Label htmlFor="valor_pedagio">Valor do Pedágio (R$)</Label>
+        <TooltipInfo content="Soma de todos os pedágios da rota. Verifique os valores atualizados no site das concessionárias. Ex: Se passar por 3 pedágios de R$ 15,00 cada, o total é R$ 45,00." />
+      </div>
       <Input
         id="valor_pedagio"
         type="number"
         step="0.01"
         min="0"
+        max="1000"
         placeholder="0.00"
         value={formData.valor_pedagio}
         onChange={(e) => setFormData({ ...formData, valor_pedagio: e.target.value })}
+        onInvalid={(e) => {
+          const input = e.target as HTMLInputElement;
+          if (input.validity.rangeOverflow) {
+            input.setCustomValidity('💰 O valor máximo de pedágio é R$ 1.000. Verifique se você não digitou errado.');
+          } else {
+            input.setCustomValidity('💰 Digite um valor de pedágio válido (mínimo R$ 0).');
+          }
+        }}
+        onInput={(e) => {
+          const input = e.target as HTMLInputElement;
+          input.setCustomValidity('');
+        }}
+        title="Valor total dos pedágios na rota em Reais. Ex: R$ 75,00"
       />
-      <p className="text-xs text-muted-foreground">Valor total dos pedágios neste trecho</p>
     </div>
     
     <DialogFooter>

@@ -37,6 +37,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { useAuth } from "@/hooks/useAuth"
 import { CSVImportDialog } from "@/components/CSVImportDialog"
+import { TooltipInfo } from "@/components/TooltipInfo"
 
 type VehicleStatus = 'Disponível' | 'Em_Manutenção' | 'Em_Uso'
 
@@ -77,31 +78,69 @@ const VehicleForm = ({
       />
     </div>
     
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-2 gap-4">
       <div className="space-y-2">
-        <Label htmlFor="capacidade_ton">Capacidade (ton)</Label>
+        <div className="flex items-center">
+          <Label htmlFor="capacidade_ton">Capacidade (toneladas)</Label>
+          <TooltipInfo content="Peso máximo que o veículo pode transportar. Uma tonelada equivale a 1.000 kg. Ex: Se o caminhão aguenta 40 toneladas, ele pode carregar 40.000 kg de carga." />
+        </div>
         <Input
           id="capacidade_ton"
           type="number"
           step="0.01"
           min="0.1"
+          max="100"
           placeholder="40.00"
           value={formData.capacidade_ton}
           onChange={(e) => setFormData({ ...formData, capacidade_ton: e.target.value })}
+          onInvalid={(e) => {
+            const input = e.target as HTMLInputElement;
+            if (input.validity.rangeUnderflow) {
+              input.setCustomValidity('⚠️ A capacidade mínima é 0.1 toneladas (100 kg). Veículos menores não são considerados veículos de carga.');
+            } else if (input.validity.rangeOverflow) {
+              input.setCustomValidity('⚠️ A capacidade máxima é 100 toneladas. Se seu veículo é maior, contate o suporte.');
+            } else {
+              input.setCustomValidity('⚖️ Digite uma capacidade válida entre 0.1 e 100 toneladas.');
+            }
+          }}
+          onInput={(e) => {
+            const input = e.target as HTMLInputElement;
+            input.setCustomValidity('');
+          }}
           required
+          title="Capacidade do veículo em toneladas (entre 0.1 e 100 ton)"
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="km_por_litro">Km/litro</Label>
+        <div className="flex items-center">
+          <Label htmlFor="km_por_litro">Consumo (Km/litro)</Label>
+          <TooltipInfo content="Quantos quilômetros o veículo percorre com 1 litro de diesel. Ex: Se consome 3,2 km/l, significa que a cada litro ele anda 3,2 km. Quanto maior esse número, mais econômico é o veículo." />
+        </div>
         <Input
           id="km_por_litro"
           type="number"
           step="0.01"
           min="0.1"
+          max="20"
           placeholder="3.20"
           value={formData.km_por_litro}
           onChange={(e) => setFormData({ ...formData, km_por_litro: e.target.value })}
+          onInvalid={(e) => {
+            const input = e.target as HTMLInputElement;
+            if (input.validity.rangeUnderflow) {
+              input.setCustomValidity('⛽ O consumo mínimo é 0.1 km/l. Se for menor, o veículo é muito ineficiente.');
+            } else if (input.validity.rangeOverflow) {
+              input.setCustomValidity('⛽ O consumo máximo é 20 km/l. Veículos de carga pesada geralmente consomem entre 2 a 5 km/l.');
+            } else {
+              input.setCustomValidity('⛽ Digite um consumo válido entre 0.1 e 20 km/l.');
+            }
+          }}
+          onInput={(e) => {
+            const input = e.target as HTMLInputElement;
+            input.setCustomValidity('');
+          }}
           required
+          title="Consumo do veículo em km/litro (típico: 2 a 5 km/l para caminhões)"
         />
       </div>
     </div>

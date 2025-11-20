@@ -1,12 +1,24 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "@/integrations/supabase/client"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MetricCard } from "@/components/MetricCard"
-import { TrendingUp, Truck, Package, DollarSign, Target, Download, FileText } from "lucide-react"
+import { 
+  TrendingUp, 
+  TrendingDown,
+  Truck, 
+  DollarSign, 
+  Target, 
+  Download, 
+  FileText,
+  BarChart3,
+  Route as RouteIcon,
+  Package
+} from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 export default function Reports() {
@@ -58,7 +70,7 @@ export default function Reports() {
     }
   })
 
-  // Fetch vehicles for filter
+  // Buscar veículos para filtro
   const { data: vehicles = [] } = useQuery({
     queryKey: ['vehicles'],
     queryFn: async () => {
@@ -68,7 +80,7 @@ export default function Reports() {
     }
   })
 
-  // Fetch routes for filter
+  // Buscar rotas para filtro
   const { data: routes = [] } = useQuery({
     queryKey: ['routes'],
     queryFn: async () => {
@@ -78,101 +90,135 @@ export default function Reports() {
     }
   })
 
-  // Calculate KPIs
-  const completedTrips = trips.filter(t => t.status === 'completed')
-  const otd = trips.length > 0 
-    ? (completedTrips.filter(t => new Date(t.end_date) <= new Date(t.end_date)).length / trips.length * 100).toFixed(1)
-    : '0.0'
-
-  const allocatedVehicles = new Set(trips.map(t => t.vehicle_id)).size
-  const fleetUtilization = vehicles.length > 0
-    ? (allocatedVehicles / vehicles.length * 100).toFixed(1)
-    : '0.0'
-
+  // ===== CÁLCULOS DE KPIs PRINCIPAIS =====
+  const totalTrips = trips.length
+  const totalRevenue = trips.reduce((sum, t) => sum + (Number(t.receita) || 0), 0)
+  const totalCost = trips.reduce((sum, t) => sum + (Number(t.custo_total_estimado) || 0), 0)
+  const totalProfit = totalRevenue - totalCost
+  const profitMargin = totalRevenue > 0 ? ((totalProfit / totalRevenue) * 100) : 0
+  
+  const totalKm = trips.reduce((sum, t) => sum + (t.route?.distancia_km || 0), 0)
+  const avgCostPerKm = totalKm > 0 ? (totalCost / totalKm) : 0
+  
   const occupancyRates = trips
     .filter(t => t.peso_ton && t.vehicle?.capacidade_ton)
     .map(t => (t.peso_ton! / t.vehicle!.capacidade_ton) * 100)
   const avgOccupancy = occupancyRates.length > 0
-    ? (occupancyRates.reduce((a, b) => a + b, 0) / occupancyRates.length).toFixed(1)
-    : '0.0'
+    ? (occupancyRates.reduce((a, b) => a + b, 0) / occupancyRates.length)
+    : 0
 
-  const totalKm = trips.reduce((sum, t) => sum + (t.route?.distancia_km || 0), 0)
-  const totalCost = trips.reduce((sum, t) => sum + (Number(t.custo_total_estimado) || 0), 0)
-  const avgCostPerKm = totalKm > 0 ? (totalCost / totalKm).toFixed(2) : '0.00'
+  // Breakdown de custos médios
+  const avgFuelCost = trips.length > 0 
+    ? trips.reduce((sum, t) => sum + (Number(t.custo_combustivel) || 0), 0) / trips.length 
+    : 0
+  const avgVariableCost = trips.length > 0 
+    ? trips.reduce((sum, t) => sum + (Number(t.custo_variaveis) || 0), 0) / trips.length 
+    : 0
+  const avgTollCost = trips.length > 0 
+    ? trips.reduce((sum, t) => sum + (Number(t.custo_pedagios) || 0), 0) / trips.length 
+    : 0
+  const avgFixedCost = trips.length > 0 
+    ? trips.reduce((sum, t) => sum + (Number(t.custo_fixo_rateado) || 0), 0) / trips.length 
+    : 0
 
-  const tripsWithRevenue = trips.filter(t => t.receita && t.receita > 0)
-  const avgMargin = tripsWithRevenue.length > 0
-    ? (tripsWithRevenue.reduce((sum, t) => {
-        const margin = ((Number(t.receita) - Number(t.custo_total_estimado)) / Number(t.receita)) * 100
-        return sum + margin
-      }, 0) / tripsWithRevenue.length).toFixed(1)
-    : '0.0'
-
-  // Monthly aggregation
-  const monthlyData = trips.reduce((acc, trip) => {
-    const month = new Date(trip.start_date).toISOString().slice(0, 7)
-    if (!acc[month]) {
-      acc[month] = { km: 0, cost: 0, trips: 0, completed: 0 }
-    }
-    acc[month].km += trip.route?.distancia_km || 0
-    acc[month].cost += Number(trip.custo_total_estimado) || 0
-    acc[month].trips += 1
-    if (trip.status === 'completed') acc[month].completed += 1
-    return acc
-  }, {} as Record<string, any>)
-
-  const monthlyRows = Object.entries(monthlyData).map(([month, data]) => ({
-    month,
-    totalKm: data.km,
-    totalCost: data.cost,
-    costPerKm: data.km > 0 ? data.cost / data.km : 0,
-    otd: data.trips > 0 ? (data.completed / data.trips * 100) : 0
-  }))
-
-  // Route ranking
-  const routeStats = trips.reduce((acc, trip) => {
-    const routeId = trip.route_id
-    if (!acc[routeId]) {
-      acc[routeId] = {
-        routeName: `${trip.route?.origem} → ${trip.route?.destino}`,
+  // Análise por veículo
+  const vehicleStats = trips.reduce((acc, trip) => {
+    const vehicleId = trip.vehicle_id
+    const vehicleName = trip.vehicle?.tipo || 'Desconhecido'
+    
+    if (!acc[vehicleId]) {
+      acc[vehicleId] = {
+        name: vehicleName,
+        trips: 0,
         totalKm: 0,
         totalCost: 0,
         totalRevenue: 0,
-        count: 0
+        avgOccupancy: []
       }
     }
-    acc[routeId].totalKm += trip.route?.distancia_km || 0
-    acc[routeId].totalCost += Number(trip.custo_total_estimado) || 0
-    acc[routeId].totalRevenue += Number(trip.receita) || 0
-    acc[routeId].count += 1
+    
+    acc[vehicleId].trips += 1
+    acc[vehicleId].totalKm += trip.route?.distancia_km || 0
+    acc[vehicleId].totalCost += Number(trip.custo_total_estimado) || 0
+    acc[vehicleId].totalRevenue += Number(trip.receita) || 0
+    
+    if (trip.peso_ton && trip.vehicle?.capacidade_ton) {
+      acc[vehicleId].avgOccupancy.push((trip.peso_ton / trip.vehicle.capacidade_ton) * 100)
+    }
+    
     return acc
   }, {} as Record<string, any>)
 
-  const routeRanking = Object.values(routeStats).map((r: any) => ({
-    route: r.routeName,
+  const vehiclePerformance = Object.values(vehicleStats).map((v: any) => ({
+    name: v.name,
+    trips: v.trips,
+    totalKm: v.totalKm,
+    costPerKm: v.totalKm > 0 ? v.totalCost / v.totalKm : 0,
+    revenue: v.totalRevenue,
+    profit: v.totalRevenue - v.totalCost,
+    margin: v.totalRevenue > 0 ? ((v.totalRevenue - v.totalCost) / v.totalRevenue * 100) : 0,
+    avgOccupancy: v.avgOccupancy.length > 0 
+      ? v.avgOccupancy.reduce((a: number, b: number) => a + b, 0) / v.avgOccupancy.length 
+      : 0
+  })).sort((a, b) => b.profit - a.profit)
+
+  // Análise por rota
+  const routeStats = trips.reduce((acc, trip) => {
+    const routeId = trip.route_id
+    const routeName = `${trip.route?.origem || '?'} → ${trip.route?.destino || '?'}`
+    
+    if (!acc[routeId]) {
+      acc[routeId] = {
+        name: routeName,
+        trips: 0,
+        totalKm: 0,
+        totalCost: 0,
+        totalRevenue: 0
+      }
+    }
+    
+    acc[routeId].trips += 1
+    acc[routeId].totalKm += trip.route?.distancia_km || 0
+    acc[routeId].totalCost += Number(trip.custo_total_estimado) || 0
+    acc[routeId].totalRevenue += Number(trip.receita) || 0
+    
+    return acc
+  }, {} as Record<string, any>)
+
+  const routePerformance = Object.values(routeStats).map((r: any) => ({
+    name: r.name,
+    trips: r.trips,
+    totalKm: r.totalKm,
     costPerKm: r.totalKm > 0 ? r.totalCost / r.totalKm : 0,
-    margin: r.totalRevenue > 0 ? ((r.totalRevenue - r.totalCost) / r.totalRevenue * 100) : 0,
-    trips: r.count
-  }))
+    revenue: r.totalRevenue,
+    profit: r.totalRevenue - r.totalCost,
+    margin: r.totalRevenue > 0 ? ((r.totalRevenue - r.totalCost) / r.totalRevenue * 100) : 0
+  })).sort((a, b) => b.margin - a.margin)
 
   const exportCSV = () => {
     const csv = [
-      ['Mês', 'Total KM', 'Custo Total', 'Custo/KM', 'OTD (%)'].join(','),
-      ...monthlyRows.map(row => 
-        [row.month, row.totalKm, row.totalCost.toFixed(2), row.costPerKm.toFixed(2), row.otd.toFixed(1)].join(',')
+      ['Tipo', 'Nome', 'Viagens', 'KM Total', 'Custo Total', 'Receita', 'Lucro', 'Margem (%)'].join(','),
+      '=== VEÍCULOS ===',
+      ...vehiclePerformance.map(v => 
+        ['Veículo', v.name, v.trips, v.totalKm.toFixed(0), v.costPerKm.toFixed(2), v.revenue.toFixed(2), v.profit.toFixed(2), v.margin.toFixed(1)].join(',')
+      ),
+      '',
+      '=== ROTAS ===',
+      ...routePerformance.map(r => 
+        ['Rota', r.name, r.trips, r.totalKm.toFixed(0), r.costPerKm.toFixed(2), r.revenue.toFixed(2), r.profit.toFixed(2), r.margin.toFixed(1)].join(',')
       )
     ].join('\n')
 
-    const blob = new Blob([csv], { type: 'text/csv' })
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `relatorio-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `nexus-relatorio-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     
     toast({
       title: "CSV Exportado",
-      description: "O relatório foi exportado com sucesso"
+      description: "Relatório exportado com sucesso"
     })
   }
 
@@ -180,61 +226,63 @@ export default function Reports() {
     window.print()
     toast({
       title: "PDF Gerado",
-      description: "Use a função de impressão para salvar como PDF"
+      description: "Use Ctrl+P ou Cmd+P para salvar como PDF"
     })
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Relatórios e KPIs</h1>
-          <p className="text-muted-foreground">Dashboard de performance e custos</p>
+          <h1 className="text-3xl font-bold text-foreground">Dashboard de Performance</h1>
+          <p className="text-muted-foreground">Análise de custos, receitas e eficiência operacional</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={exportCSV} variant="outline">
+          <Button onClick={exportCSV} variant="outline" size="sm">
             <Download className="mr-2 h-4 w-4" />
             Exportar CSV
           </Button>
-          <Button onClick={exportPDF} variant="outline">
+          <Button onClick={exportPDF} variant="outline" size="sm">
             <FileText className="mr-2 h-4 w-4" />
-            Gerar PDF
+            Imprimir
           </Button>
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filtros */}
       <Card>
         <CardHeader>
           <CardTitle>Filtros</CardTitle>
+          <CardDescription>Selecione o período e critérios de análise</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="text-sm text-muted-foreground mb-2 block">Data Início</label>
+            <label className="text-sm font-medium mb-2 block">Data Início</label>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md"
+              className="w-full px-3 py-2 border rounded-md bg-background"
             />
           </div>
           <div>
-            <label className="text-sm text-muted-foreground mb-2 block">Data Fim</label>
+            <label className="text-sm font-medium mb-2 block">Data Fim</label>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md"
+              className="w-full px-3 py-2 border rounded-md bg-background"
             />
           </div>
           <div>
-            <label className="text-sm text-muted-foreground mb-2 block">Veículo</label>
+            <label className="text-sm font-medium mb-2 block">Veículo</label>
             <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="all">Todos os Veículos</SelectItem>
                 {vehicles.map(v => (
                   <SelectItem key={v.id} value={v.id}>{v.tipo}</SelectItem>
                 ))}
@@ -242,13 +290,13 @@ export default function Reports() {
             </Select>
           </div>
           <div>
-            <label className="text-sm text-muted-foreground mb-2 block">Rota</label>
+            <label className="text-sm font-medium mb-2 block">Rota</label>
             <Select value={selectedRoute} onValueChange={setSelectedRoute}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
+                <SelectItem value="all">Todas as Rotas</SelectItem>
                 {routes.map(r => (
                   <SelectItem key={r.id} value={r.id}>{r.origem} → {r.destino}</SelectItem>
                 ))}
@@ -258,105 +306,228 @@ export default function Reports() {
         </CardContent>
       </Card>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <MetricCard
-          title="OTD"
-          value={`${otd}%`}
-          description="On-Time Delivery"
-          icon={Target}
-          variant="success"
-        />
-        <MetricCard
-          title="Utilização Frota"
-          value={`${fleetUtilization}%`}
-          description="Veículos alocados"
-          icon={Truck}
-        />
-        <MetricCard
-          title="Taxa Ocupação"
-          value={`${avgOccupancy}%`}
-          description="Média peso/capacidade"
-          icon={Package}
-        />
-        <MetricCard
-          title="Custo Médio/KM"
-          value={`R$ ${avgCostPerKm}`}
-          description="Custo por quilômetro"
-          icon={DollarSign}
-        />
-        <MetricCard
-          title="Margem Média"
-          value={`${avgMargin}%`}
-          description="Receita vs Custo"
-          icon={TrendingUp}
-          variant={Number(avgMargin) > 0 ? 'success' : 'warning'}
-        />
-      </div>
+      {/* Tabs para organizar conteúdo */}
+      <Tabs defaultValue="overview" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+          <TabsTrigger value="vehicles">Por Veículo</TabsTrigger>
+          <TabsTrigger value="routes">Por Rota</TabsTrigger>
+        </TabsList>
 
-      {/* Monthly Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Resumo Mensal</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Mês</TableHead>
-                <TableHead>Total KM</TableHead>
-                <TableHead>Custo Total</TableHead>
-                <TableHead>Custo/KM</TableHead>
-                <TableHead>OTD (%)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {monthlyRows.map(row => (
-                <TableRow key={row.month}>
-                  <TableCell>{row.month}</TableCell>
-                  <TableCell>{row.totalKm.toFixed(0)} km</TableCell>
-                  <TableCell>R$ {row.totalCost.toFixed(2)}</TableCell>
-                  <TableCell>R$ {row.costPerKm.toFixed(2)}</TableCell>
-                  <TableCell>{row.otd.toFixed(1)}%</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        {/* Tab: Visão Geral */}
+        <TabsContent value="overview" className="space-y-4">
+          {/* KPIs Principais */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricCard
+              title="Receita Total"
+              value={`R$ ${totalRevenue.toFixed(2)}`}
+              description="Faturamento das viagens"
+              icon={TrendingUp}
+              variant="default"
+            />
+            <MetricCard
+              title="Lucro/Prejuízo"
+              value={`R$ ${totalProfit.toFixed(2)}`}
+              description="Receita - Custo"
+              icon={totalProfit >= 0 ? TrendingUp : TrendingDown}
+              variant={totalProfit >= 0 ? 'success' : 'warning'}
+            />
+            <MetricCard
+              title="Margem"
+              value={`${profitMargin.toFixed(1)}%`}
+              description="Percentual de lucro"
+              icon={Target}
+              variant={profitMargin >= 15 ? 'success' : 'warning'}
+            />
+            <MetricCard
+              title="Taxa Ocupação"
+              value={`${avgOccupancy.toFixed(1)}%`}
+              description="Média de uso da capacidade"
+              icon={Package}
+              variant={avgOccupancy >= 80 ? 'success' : 'warning'}
+            />
+          </div>
 
-      {/* Route Ranking */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Ranking de Rotas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Rota</TableHead>
-                <TableHead>Viagens</TableHead>
-                <TableHead>Custo/KM</TableHead>
-                <TableHead>Margem (%)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {routeRanking
-                .sort((a, b) => a.costPerKm - b.costPerKm)
-                .map((row, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell>{row.route}</TableCell>
-                    <TableCell>{row.trips}</TableCell>
-                    <TableCell>R$ {row.costPerKm.toFixed(2)}</TableCell>
-                    <TableCell className={row.margin > 0 ? 'text-success' : 'text-destructive'}>
-                      {row.margin.toFixed(1)}%
-                    </TableCell>
+          {/* Resumo Operacional */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Resumo Operacional</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Viagens</p>
+                  <p className="text-2xl font-bold">{totalTrips}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Total KM</p>
+                  <p className="text-2xl font-bold">{totalKm.toFixed(0)}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Custo/KM</p>
+                  <p className="text-2xl font-bold">R$ {avgCostPerKm.toFixed(2)}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Custo Total</p>
+                  <p className="text-2xl font-bold">R$ {totalCost.toFixed(2)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Breakdown de Custos */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Composição de Custos (Média/Viagem)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm">Combustível</span>
+                    <span className="text-sm font-bold">R$ {avgFuelCost.toFixed(2)}</span>
+                  </div>
+                  <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
+                    <div className="h-full bg-amber-500" style={{ width: `${(avgFuelCost / (avgFuelCost + avgVariableCost + avgTollCost + avgFixedCost)) * 100}%` }} />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm">Variáveis</span>
+                    <span className="text-sm font-bold">R$ {avgVariableCost.toFixed(2)}</span>
+                  </div>
+                  <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500" style={{ width: `${(avgVariableCost / (avgFuelCost + avgVariableCost + avgTollCost + avgFixedCost)) * 100}%` }} />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm">Pedágios</span>
+                    <span className="text-sm font-bold">R$ {avgTollCost.toFixed(2)}</span>
+                  </div>
+                  <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
+                    <div className="h-full bg-green-500" style={{ width: `${(avgTollCost / (avgFuelCost + avgVariableCost + avgTollCost + avgFixedCost)) * 100}%` }} />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm">Fixos Rateados</span>
+                    <span className="text-sm font-bold">R$ {avgFixedCost.toFixed(2)}</span>
+                  </div>
+                  <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
+                    <div className="h-full bg-purple-500" style={{ width: `${(avgFixedCost / (avgFuelCost + avgVariableCost + avgTollCost + avgFixedCost)) * 100}%` }} />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab: Performance por Veículo */}
+        <TabsContent value="vehicles" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Performance por Veículo</CardTitle>
+              <CardDescription>Análise de rentabilidade e eficiência de cada veículo</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Veículo</TableHead>
+                    <TableHead className="text-center">Viagens</TableHead>
+                    <TableHead className="text-right">KM Total</TableHead>
+                    <TableHead className="text-right">Custo/KM</TableHead>
+                    <TableHead className="text-right">Receita</TableHead>
+                    <TableHead className="text-right">Lucro</TableHead>
+                    <TableHead className="text-right">Margem</TableHead>
+                    <TableHead className="text-right">Ocupação</TableHead>
                   </TableRow>
-                ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {vehiclePerformance.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground">
+                        Nenhuma viagem encontrada
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    vehiclePerformance.map((vehicle, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell className="font-medium">{vehicle.name}</TableCell>
+                        <TableCell className="text-center">{vehicle.trips}</TableCell>
+                        <TableCell className="text-right">{vehicle.totalKm.toFixed(0)} km</TableCell>
+                        <TableCell className="text-right">R$ {vehicle.costPerKm.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">R$ {vehicle.revenue.toFixed(2)}</TableCell>
+                        <TableCell className={`text-right font-semibold ${vehicle.profit >= 0 ? 'text-success' : 'text-warning'}`}>
+                          R$ {vehicle.profit.toFixed(2)}
+                        </TableCell>
+                        <TableCell className={`text-right font-semibold ${vehicle.margin >= 15 ? 'text-success' : 'text-warning'}`}>
+                          {vehicle.margin.toFixed(1)}%
+                        </TableCell>
+                        <TableCell className="text-right">{vehicle.avgOccupancy.toFixed(1)}%</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab: Performance por Rota */}
+        <TabsContent value="routes" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Performance por Rota</CardTitle>
+              <CardDescription>Análise de rentabilidade de cada rota</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Rota</TableHead>
+                    <TableHead className="text-center">Viagens</TableHead>
+                    <TableHead className="text-right">KM Total</TableHead>
+                    <TableHead className="text-right">Custo/KM</TableHead>
+                    <TableHead className="text-right">Receita</TableHead>
+                    <TableHead className="text-right">Lucro</TableHead>
+                    <TableHead className="text-right">Margem</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {routePerformance.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                        Nenhuma viagem encontrada
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    routePerformance.map((route, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell className="font-medium">{route.name}</TableCell>
+                        <TableCell className="text-center">{route.trips}</TableCell>
+                        <TableCell className="text-right">{route.totalKm.toFixed(0)} km</TableCell>
+                        <TableCell className="text-right">R$ {route.costPerKm.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">R$ {route.revenue.toFixed(2)}</TableCell>
+                        <TableCell className={`text-right font-semibold ${route.profit >= 0 ? 'text-success' : 'text-warning'}`}>
+                          R$ {route.profit.toFixed(2)}
+                        </TableCell>
+                        <TableCell className={`text-right font-semibold ${route.margin >= 15 ? 'text-success' : 'text-warning'}`}>
+                          {route.margin.toFixed(1)}%
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

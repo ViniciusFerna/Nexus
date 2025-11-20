@@ -5,8 +5,10 @@ import {
   MapPin, 
   Play,
   DollarSign, 
-  BarChart3
+  BarChart3,
+  Package
 } from "lucide-react"
+import nexusLogo from "@/assets/nexus-logo.png"
 
 const Index = () => {
   const navigate = useNavigate();
@@ -27,6 +29,14 @@ const Index = () => {
       bgClass: "bg-success/20 hover:bg-success/30",
       iconClass: "text-success",
       shadowClass: "group-hover:shadow-success/50"
+    },
+    { 
+      title: "Cargas", 
+      url: "/cargo", 
+      icon: Package,
+      bgClass: "bg-amber-500/20 hover:bg-amber-500/30",
+      iconClass: "text-amber-700",
+      shadowClass: "group-hover:shadow-amber-500/50"
     },
     { 
       title: "Viagens", 
@@ -67,13 +77,15 @@ const Index = () => {
       {/* Hero Section */}
       <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-background rounded-3xl p-12 mb-12 relative overflow-hidden">
         <div className="absolute inset-0 bg-grid-primary/5 [mask-image:linear-gradient(0deg,transparent,black)]"></div>
-        <div className="relative">
-          <h1 className="text-5xl md:text-6xl font-bold text-foreground mb-4">
-            TMS Didático — SENAI
+        <div className="relative flex flex-col items-center text-center">
+          <img 
+            src={nexusLogo} 
+            alt="NEXUS Logo" 
+            className="w-48 h-48 md:w-56 md:h-56 mb-6 object-contain"
+          />
+          <h1 className="text-5xl md:text-7xl font-bold text-foreground mb-8 tracking-tight">
+            NEXUS
           </h1>
-          <p className="text-xl text-muted-foreground mb-4">
-            seu sistema de simulações
-          </p>
           <div className="inline-block border-2 border-primary/30 rounded-full px-6 py-2 backdrop-blur-sm">
             <p className="text-primary font-medium">
               Logística sem fronteiras, aprendizagem exponencial!

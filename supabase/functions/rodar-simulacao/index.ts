@@ -92,20 +92,38 @@ serve(async (req) => {
     const parametros = await fetchGlobalParameters(supabaseClient, simulacao.user_id)
     const custosVeiculo = await fetchVehicleCosts(supabaseClient, simulacao.user_id, viagem.vehicle_id)
     
-    // Use simplified cost model - no variable/fixed costs, tolls from route
-    const custosVariaveis: any[] = []
-    const custosFixos: any[] = []
-    const pedagios = rota.valor_pedagio ? [{ valor: rota.valor_pedagio }] : []
+    // Fetch active variable and fixed costs
+    const { data: variableCostsData } = await supabaseClient
+      .from('custos_variaveis')
+      .select('valor_por_km')
+      .eq('user_id', simulacao.user_id)
+      .eq('ativo', true)
+    
+    const { data: fixedCostsData } = await supabaseClient
+      .from('custos_fixos')
+      .select('valor_mensal')
+      .eq('user_id', simulacao.user_id)
+      .eq('ativo', true)
+    
+    // Fetch route tolls
+    const { data: tollsData } = await supabaseClient
+      .from('pedagios')
+      .select('valor')
+      .eq('user_id', simulacao.user_id)
+      .eq('rota_id', viagem.route_id)
+    
+    const custosVariaveis = variableCostsData || []
+    const custosFixos = fixedCostsData || []
+    const pedagios = tollsData || []
 
     // Apply overrides or use base values
     const precoDiesel = simulacao.preco_diesel_litro || parametros.preco_diesel_litro
     const kmPorLitro = simulacao.km_por_litro || veiculo.km_por_litro
     const velocidadeMedia = simulacao.velocidade_media_kmh || parametros.velocidade_media_kmh
     const entregasNaRota = simulacao.entregas_na_rota || 1
-    const custoVarExtraPorKm = simulacao.custo_var_extra_por_km || 0
-    const pedagogiosExtra = simulacao.pedagios_extra || 0
 
-    // Calculate using shared function
+    // Calculate using shared function (includes extra cost from base trip)
+    const custoExtraBase = Number(viagem.custo_extra) || 0
     const resultado = calcularCustos({
       distanciaKm: Number(rota.distancia_km) || 0,
       kmPorLitro: kmPorLitro,
@@ -116,11 +134,15 @@ serve(async (req) => {
       custosFixos: custosFixos,
       custosVeiculo: custosVeiculo,
       entregasNaRota: entregasNaRota,
-      custoVarExtraPorKm: custoVarExtraPorKm,
-      pedagogiosExtra: pedagogiosExtra,
+      custoExtra: custoExtraBase,
       pesoTon: viagem.peso_ton,
       receita: viagem.receita,
     })
+
+    // Calculate margin if revenue exists
+    const margem = viagem.receita && viagem.receita > 0
+      ? ((viagem.receita - resultado.custoTotal) / viagem.receita) * 100
+      : null
 
     // Update simulation with calculated results
     const { error: updateError } = await supabaseClient
@@ -128,8 +150,8 @@ serve(async (req) => {
       .update({
         custo_total: resultado.custoTotal,
         custo_por_entrega: resultado.custoPorEntrega,
-        custo_por_tonelada_km: resultado.custoPorToneladaKm,
-        margem: resultado.margem,
+        custo_por_tonelada_km: resultado.custoPorTonKm,
+        margem: margem,
         consumo_combustivel_l: resultado.consumoCombustivelL,
         custo_combustivel: resultado.custoCombustivel,
         custo_variaveis: resultado.custoVariaveis,

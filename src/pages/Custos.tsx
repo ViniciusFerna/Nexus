@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Settings } from "lucide-react";
+import { TooltipInfo } from "@/components/TooltipInfo";
 
 export default function Custos() {
   const { user } = useAuth();
@@ -18,7 +19,6 @@ export default function Custos() {
   const [formData, setFormData] = useState({
     preco_diesel_litro: "",
     velocidade_media_kmh: "",
-    moeda: "R$",
   });
 
   useEffect(() => {
@@ -41,7 +41,6 @@ export default function Custos() {
         setFormData({
           preco_diesel_litro: data.preco_diesel_litro.toString(),
           velocidade_media_kmh: data.velocidade_media_kmh.toString(),
-          moeda: data.moeda,
         });
       }
     } catch (error) {
@@ -58,7 +57,6 @@ export default function Custos() {
       user_id: user?.id,
       preco_diesel_litro: parseFloat(formData.preco_diesel_litro),
       velocidade_media_kmh: parseFloat(formData.velocidade_media_kmh),
-      moeda: formData.moeda,
     };
 
     try {
@@ -130,21 +128,41 @@ export default function Custos() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="preco_diesel_litro">Preço do Diesel (por litro) *</Label>
+              <div className="flex items-center">
+                <Label htmlFor="preco_diesel_litro">Preço do Diesel (por litro) *</Label>
+                <TooltipInfo content="Valor atual do litro de diesel na sua região. Este preço varia conforme o posto e localização. Consulte sites como ANP para valores de referência." />
+              </div>
               <Input
                 id="preco_diesel_litro"
                 type="number"
                 step="0.01"
                 min="0"
+                max="20"
                 value={formData.preco_diesel_litro}
                 onChange={(e) => handleInputChange("preco_diesel_litro", e.target.value)}
+                onInvalid={(e) => {
+                  const input = e.target as HTMLInputElement;
+                  if (input.validity.rangeOverflow) {
+                    input.setCustomValidity('⛽ O preço do diesel não pode ser maior que R$ 20/litro. Verifique se você não digitou errado.');
+                  } else {
+                    input.setCustomValidity('⛽ Digite um preço válido para o diesel (mínimo R$ 0).');
+                  }
+                }}
+                onInput={(e) => {
+                  const input = e.target as HTMLInputElement;
+                  input.setCustomValidity('');
+                }}
                 placeholder="5.50"
                 required
+                title="Preço atual do diesel. Consulte ANP ou postos locais."
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="velocidade_media_kmh">Velocidade Média (km/h) *</Label>
+              <div className="flex items-center">
+                <Label htmlFor="velocidade_media_kmh">Velocidade Média (km/h) *</Label>
+                <TooltipInfo content="Velocidade média esperada nas viagens, considerando tráfego, paradas e condições da rodovia. Ex: Em rodovias, use 60-80 km/h; em áreas urbanas, 30-40 km/h." />
+              </div>
               <Input
                 id="velocidade_media_kmh"
                 type="number"
@@ -153,20 +171,23 @@ export default function Custos() {
                 max="120"
                 value={formData.velocidade_media_kmh}
                 onChange={(e) => handleInputChange("velocidade_media_kmh", e.target.value)}
+                onInvalid={(e) => {
+                  const input = e.target as HTMLInputElement;
+                  if (input.validity.rangeUnderflow) {
+                    input.setCustomValidity('🚛 A velocidade mínima é 1 km/h.');
+                  } else if (input.validity.rangeOverflow) {
+                    input.setCustomValidity('🚛 A velocidade máxima é 120 km/h (limite legal brasileiro).');
+                  } else {
+                    input.setCustomValidity('🚛 Digite uma velocidade válida entre 1 e 120 km/h.');
+                  }
+                }}
+                onInput={(e) => {
+                  const input = e.target as HTMLInputElement;
+                  input.setCustomValidity('');
+                }}
                 placeholder="60"
                 required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="moeda">Moeda *</Label>
-              <Input
-                id="moeda"
-                type="text"
-                value={formData.moeda}
-                onChange={(e) => handleInputChange("moeda", e.target.value)}
-                placeholder="R$"
-                required
+                title="Velocidade média considerando tipo de via e tráfego."
               />
             </div>
 
